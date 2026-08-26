@@ -25,6 +25,17 @@ info() { printf "\033[1;32m[INFO]\033[0m %s\n" "$*"; }
 warn() { printf "\033[1;33m[WARN]\033[0m %s\n" "$*"; }
 step() { printf "\n\033[1;36m=== %s ===\033[0m\n" "$*"; }
 
+gen_password() {
+  local raw
+  raw="$(head -c 48 /dev/urandom | base64 | tr -d '+/=')"
+  printf '%s' "${raw:0:16}"
+}
+
+first_line() {
+  local block="$1"
+  printf '%s' "${block%%$'\n'*}"
+}
+
 banner() {
   echo "============================================================"
   echo " HandwerkerOS Installer (Proxmox LXC)"
@@ -109,8 +120,9 @@ resolve_ctid_and_mode() {
 download_template() {
   step "Debian-Template"
   pveam update >/dev/null 2>&1 || warn "pveam update fehlgeschlagen (offline?) – nutze lokales Template falls vorhanden."
-  local template
-  template="$(pveam available --section system 2>/dev/null | awk '/debian-12-standard/ {print $2}' | sort -rV | head -n1)"
+  local template sorted
+  sorted="$(pveam available --section system 2>/dev/null | awk '/debian-12-standard/ {print $2}' | sort -rV)" || sorted=""
+  template="$(first_line "${sorted}")"
   [ -z "${template}" ] && template="debian-12-standard_12.7-1_amd64.tar.zst"
   if pveam list "${STORAGE}" 2>/dev/null | grep -q "debian-12-standard"; then
     info "Template bereits lokal vorhanden."
@@ -125,7 +137,7 @@ download_template() {
 create_container() {
   step "Erstelle LXC ${CTID} (unprivilegiert, onboot)"
   local root_pw
-  root_pw="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 16)"
+  root_pw="$(gen_password)"
   pct create "${CTID}" "${STORAGE}:vztmpl/${TEMPLATE}" \
     --hostname "${APP}" \
     --description "HandwerkerOS - lokale Dokumentationsplattform" \
@@ -205,7 +217,8 @@ install -m 644 systemd/handwerkeros.service /etc/systemd/system/handwerkeros.ser
 PW_FILE="${APP_DIR}/storage/data/admin_password"
 OVERRIDE_DIR="/etc/systemd/system/handwerkeros.service.d"
 if [ ! -f "${OVERRIDE_DIR}/override.conf" ]; then
-  ADMIN_PW="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 16)"
+  ADMIN_PW="$(head -c 48 /dev/urandom | base64 | tr -d '+/=')"
+  ADMIN_PW="${ADMIN_PW:0:16}"
   mkdir -p "${OVERRIDE_DIR}"
   cat >"${OVERRIDE_DIR}/override.conf" <<EOF
 [Service]
