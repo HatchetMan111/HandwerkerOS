@@ -92,11 +92,8 @@ Idempotenz ist datenbankseitig: `operation_id` ist Primärschlüssel der
 Geplant als Community-Scripts-Einzeiler (Phase „Proxmox“):
 
 ```bash
-bash -c "$(wget -qLO - https://raw.githubusercontent.com/USER/REPO/main/install/handwerkeros.sh)"
+bash -c "$(wget -qLO - https://raw.githubusercontent.com/HatchetMan111/HandwerkerOS/main/install/handwerkeros.sh)"
 ```
-
-> Hinweis: Das Install-Script wird im Schritt „Proxmox-Installer“ ergänzt. Repo-URL ist
-> eine Variable bis das GitHub-Repository festgelegt ist.
 
 Bereits vorhanden: [`systemd/handwerkeros.service`](systemd/handwerkeros.service)
 (`Restart=always`, `After=network-online.target`, ReadWritePaths auf Storage).
