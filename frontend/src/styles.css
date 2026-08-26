@@ -586,3 +586,248 @@ textarea:focus {
     padding-top: 1.5rem;
   }
 }
+
+.builder-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+
+.builder-section-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.8rem;
+}
+
+.section-title-input {
+  font-weight: 700;
+  flex: 1;
+}
+
+.btn-icon {
+  min-width: 42px;
+  min-height: 42px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #eef2f8;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.btn-icon.danger {
+  color: var(--danger);
+}
+
+.builder-field {
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.builder-field-row {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.field-label-input {
+  flex: 2;
+  min-width: 9rem;
+}
+
+.field-type-select {
+  flex: 1.4;
+  min-width: 10rem;
+}
+
+.req-toggle {
+  white-space: nowrap;
+  margin: 0 0.3rem;
+}
+
+.options-input,
+.default-value-row input,
+.default-value-row select {
+  margin-top: 0.45rem;
+}
+
+.default-value-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.45rem;
+}
+
+.default-value-row .muted {
+  white-space: nowrap;
+  min-width: 6.2rem;
+}
+
+.add-section-btn {
+  width: 100%;
+  border-style: dashed;
+}
+
+.chip {
+  display: inline-block;
+  background: #eef2f8;
+  border-radius: 999px;
+  padding: 0.15rem 0.65rem;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.chip-done {
+  background: #dcf3ea;
+  color: #14683f;
+}
+
+.collapsible > summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  list-style: none;
+  min-height: 44px;
+  font-size: 1rem;
+}
+
+.collapsible > summary::-webkit-details-marker {
+  display: none;
+}
+
+.progress-line {
+  font-size: 0.9rem;
+  margin: 0.4rem 0 0.7rem;
+}
+
+.segmented {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.seg {
+  flex: 1;
+  max-width: 130px;
+  min-height: 52px;
+  border-radius: 12px;
+  border: 2px solid var(--border);
+  background: white;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.seg-active.seg-yes {
+  border-color: var(--success);
+  background: #dcf3ea;
+  color: #14683f;
+}
+
+.seg-active.seg-no {
+  border-color: var(--danger);
+  background: #fbe1e3;
+  color: var(--danger);
+}
+
+.seg-active {
+  border-color: var(--primary);
+  background: #e8f0fb;
+  color: var(--primary);
+}
+
+.seg-reset {
+  flex: 0;
+  max-width: 52px;
+  font-weight: 400;
+}
+
+.dropzone {
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  padding: 0.7rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin-top: 0.4rem;
+}
+
+.dropzone.big {
+  padding: 1.6rem;
+  font-size: 0.95rem;
+}
+
+.dropzone.busy {
+  opacity: 0.6;
+}
+
+.file-label.btn-busy {
+  opacity: 0.6;
+}
+
+.general-upload {
+  margin-top: 0.6rem;
+}
+
+.floating-save {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(4.6rem + env(safe-area-inset-bottom));
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.22);
+  padding: 0.45rem 0.6rem 0.45rem 0.9rem;
+}
+
+.save-bar-space {
+  height: 4.5rem;
+}
+
+.save-bar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(4.6rem + env(safe-area-inset-bottom));
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.22);
+  padding: 0.45rem 0.6rem 0.45rem 0.9rem;
+}
+
+.save-bar.busy {
+  opacity: 0.6;
+}
+
+.login-hint {
+  margin: -0.4rem 0 0.8rem;
+}
+
+.inactive-user {
+  opacity: 0.55;
+}
+
+.user-actions select {
+  width: auto;
+  min-height: 36px;
+  font-size: 0.82rem;
+  padding: 0.25rem 0.4rem;
+}
+
+.details-actions {
+  margin-bottom: 0.5rem;
+}

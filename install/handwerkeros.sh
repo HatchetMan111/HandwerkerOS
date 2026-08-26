@@ -215,21 +215,14 @@ step "Python-Umgebung"
 
 step "systemd-Unit"
 install -m 644 systemd/handwerkeros.service /etc/systemd/system/handwerkeros.service
-PW_FILE="${APP_DIR}/storage/data/admin_password"
 OVERRIDE_DIR="/etc/systemd/system/handwerkeros.service.d"
-if [ ! -f "${OVERRIDE_DIR}/override.conf" ]; then
-  ADMIN_PW="$(head -c 48 /dev/urandom | base64 | tr -d '+/=')"
-  ADMIN_PW="${ADMIN_PW:0:16}"
-  mkdir -p "${OVERRIDE_DIR}"
-  cat >"${OVERRIDE_DIR}/override.conf" <<EOF
-[Service]
-Environment=HANDWERK_ADMIN_EMAIL=admin@handwerkeros.local
-Environment=HANDWERK_ADMIN_PASSWORD=${ADMIN_PW}
-EOF
-  umask 077 && echo "${ADMIN_PW}" >"${PW_FILE}"
+if [ -f "${OVERRIDE_DIR}/override.conf" ] && grep -q "HANDWERK_ADMIN_PASSWORD" "${OVERRIDE_DIR}/override.conf"; then
+  rm -f "${OVERRIDE_DIR}/override.conf"
+fi
+if [ -f "${APP_DIR}/storage/data/admin_password" ]; then
+  rm -f "${APP_DIR}/storage/data/admin_password"
 fi
 chown -R handwerkeros:handwerkeros "${APP_DIR}/storage"
-chmod 600 "${PW_FILE}" 2>/dev/null || true
 systemctl daemon-reload
 systemctl enable handwerkeros >/dev/null 2>&1
 systemctl restart handwerkeros
@@ -280,9 +273,12 @@ verify_installation() {
   echo " Web-UI      : http://${ct_ip}:${APP_PORT}"
   echo " API-Doku    : http://${ct_ip}:${APP_PORT}/docs"
   echo " Health      : http://${ct_ip}:${APP_PORT}/health"
-  echo " Admin-Login : admin@handwerkeros.local"
-  echo " Passwort    : im CT unter ${APP_DIR}/storage/data/admin_password"
-  echo "               (pct exec ${CTID} -- cat ${APP_DIR}/storage/data/admin_password)"
+  echo " ++++++++++++++++++++++++++++++++++++++++++++"
+  echo "  START-LOGIN   Benutzername: admin"
+  echo "                Passwort    : admin"
+  echo "  -> nach dem ersten Login im Tab 'Admin'"
+  echo "     das Passwort sofort aendern!"
+  echo " ++++++++++++++++++++++++++++++++++++++++++++"
   echo " CT          : ${CTID} (unprivilegiert, onboot=1)"
   echo " Update      : diesen Einzeiler erneut ausfuehren"
   echo " Deinstall   : pct stop ${CTID} && pct destroy ${CTID}"

@@ -73,6 +73,18 @@ export const api = {
   createCustomer: (body: { name: string; address?: string; note?: string }) =>
     request<import("./types").Customer>("/api/customers", jsonBody(body)),
 
+  listUsers: () => request<import("./types").User[]>("/api/users"),
+  createUser: (body: { email: string; name: string; password: string; role: string }) =>
+    request<import("./types").User>("/api/users", jsonBody(body)),
+  patchUser: (
+    id: string,
+    body: { name?: string; role?: string; is_active?: boolean; password?: string }
+  ) =>
+    request<import("./types").User>(`/api/users/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body)
+    }),
+
   listProjects: () => request<import("./types").Project[]>("/api/projects"),
   createProject: (body: { name: string; customer_id?: string | null; location?: string }) =>
     request<import("./types").Project>("/api/projects", jsonBody(body)),

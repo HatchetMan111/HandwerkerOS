@@ -28,6 +28,7 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
           <span className="logo-dot" /> HandwerkerOS
         </h1>
         <p className="muted">Anmeldung</p>
+        <p className="muted login-hint">Standard-Zugang: <b>admin</b> / <b>admin</b> (im Admin-Tab aendern)</p>
         <div className="field">
           <label htmlFor="login-email">E-Mail</label>
           <input

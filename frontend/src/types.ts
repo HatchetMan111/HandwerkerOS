@@ -32,6 +32,7 @@ export interface FormField {
   required?: boolean;
   options?: string[];
   unit?: string;
+  default?: unknown;
 }
 
 export interface FormSection {

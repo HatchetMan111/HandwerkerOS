@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import type { Attachment, Defect, FormSchema, Inspection } from "../types";
 import { api, formatDate, notify } from "../api";
 import FieldRenderer from "../components/FieldRenderer";
+import AttachmentImage from "../components/AttachmentImage";
+import { computeDefaults, countProgress, isFilled } from "../utils/formDefaults";
 
 const NEXT_STATUS: Record<string, string[]> = {
   draft: ["in_progress", "completed"],
@@ -22,7 +24,7 @@ const STATUS_LABELS: Record<string, string> = {
 interface ServerConflict {
   server_version: number;
   client_base_version: number;
-  server_state?: { data?: Record<string, unknown>; status?: string; version?: number };
+  server_state?: { data?: Record<string, unknown>; version?: number };
 }
 
 interface Props {
@@ -39,19 +41,22 @@ export default function InspectionDetail({ inspectionId, userName, onBack }: Pro
   const [defects, setDefects] = useState<Defect[]>([]);
   const [defectText, setDefectText] = useState("");
   const [defectPriority, setDefectPriority] = useState("medium");
-  const [missing, setMissing] = useState<string[]>([]);
+  const [missingRequired, setMissingRequired] = useState<string[]>([]);
   const [conflict, setConflict] = useState<ServerConflict | null>(null);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [uploadingMany, setUploadingMany] = useState(false);
 
   const loadAll = useCallback(async () => {
     try {
       const loaded = await api.getInspection(inspectionId);
       setInspection(loaded);
-      setValues(loaded.data ?? {});
       const template = await api.getTemplate(loaded.form_template_id);
       const version = template.versions?.find((v) => v.id === loaded.form_version_id);
-      setSchema(version?.schema ?? null);
+      const loadedSchema = version?.schema ?? null;
+      setSchema(loadedSchema);
+      const defaults = computeDefaults(loadedSchema);
+      setValues({ ...defaults, ...(loaded.data ?? {}) });
       setAttachments(await api.listAttachments("inspection", loaded.id));
       if (loaded.id) setDefects(await api.listDefects(loaded.id));
       setDirty(false);
@@ -71,7 +76,6 @@ export default function InspectionDetail({ inspectionId, userName, onBack }: Pro
   async function save() {
     if (!inspection) return;
     setBusy(true);
-    setMissing([]);
     try {
       const updated = await api.patchInspection(inspection.id, {
         data: values,
@@ -83,15 +87,15 @@ export default function InspectionDetail({ inspectionId, userName, onBack }: Pro
     } catch (error) {
       notify(String(error), true);
       if (String(error).includes("Versionskonflikt")) {
-        try {
-          const fresh = await api.getInspection(inspection.id);
+        const fresh = await api
+          .getInspection(inspection.id)
+          .catch(() => null);
+        if (fresh) {
           setConflict({
             server_version: fresh.version,
             client_base_version: inspection.version,
             server_state: { data: fresh.data, version: fresh.version }
           });
-        } catch {
-          /* ignore */
         }
       }
     } finally {
@@ -102,7 +106,6 @@ export default function InspectionDetail({ inspectionId, userName, onBack }: Pro
   async function complete() {
     if (!inspection) return;
     setBusy(true);
-    setMissing([]);
     try {
       await api.completeInspection(inspection.id);
       notify("Pruefung abgeschlossen");
@@ -111,7 +114,7 @@ export default function InspectionDetail({ inspectionId, userName, onBack }: Pro
       const message = String(error);
       notify(message, true);
       if (message.startsWith("Pflichtfelder fehlen")) {
-        setMissing(message.replace("Pflichtfelder fehlen: ", "").split(", "));
+        setMissingRequired(message.replace("Pflichtfelder fehlen: ", "").split(", "));
       }
     } finally {
       setBusy(false);
@@ -158,6 +161,25 @@ export default function InspectionDetail({ inspectionId, userName, onBack }: Pro
     }
   }
 
+  async function uploadGeneral(files: FileList | File[]) {
+    if (!inspection) return;
+    setUploadingMany(true);
+    try {
+      for (const file of Array.from(files)) {
+        await api.uploadAttachment(file, {
+          entityType: "inspection",
+          entityId: inspection.id,
+          kind: file.type.startsWith("image/") ? "photo" : "document"
+        });
+      }
+      window.dispatchEvent(new CustomEvent("hwe-attachments-changed"));
+    } catch (error) {
+      notify(String(error), true);
+    } finally {
+      setUploadingMany(false);
+    }
+  }
+
   function loadServerState() {
     if (!conflict?.server_state?.data) return;
     setValues(conflict.server_state.data);
@@ -188,6 +210,7 @@ export default function InspectionDetail({ inspectionId, userName, onBack }: Pro
   if (!inspection) return <p className="muted">Lade Pruefung...</p>;
 
   const locked = !["draft", "in_progress"].includes(inspection.status);
+  const progress = countProgress(schema, values);
 
   return (
     <div className="stack">
@@ -204,29 +227,24 @@ export default function InspectionDetail({ inspectionId, userName, onBack }: Pro
           Version {inspection.version} · aktualisiert {formatDate(inspection.updated_at)}
           {inspection.completed_at ? ` · abgeschlossen ${formatDate(inspection.completed_at)}` : ""}
         </p>
-        {dirty ? <p className="dirty-hint">Ungespeicherte Aenderungen</p> : null}
         {!locked ? (
-          <div className="btn-row">
-            <button className="btn btn-primary" onClick={save} disabled={busy || !dirty}>
-              Speichern
-            </button>
-            <button className="btn btn-success" onClick={complete} disabled={busy}>
-              Abschliessen
-            </button>
-          </div>
+          <>
+            <p className="progress-line">
+              Checkliste erledigt:{" "}
+              <b>{progress.filled}/{progress.total}</b> Felder
+              {missingRequired.length > 0 ? (
+                <span className="warn-text"> · fehlen: {missingRequired.join(", ")}</span>
+              ) : null}
+            </p>
+            <div className="btn-row">
+              <button className="btn btn-success btn-lg" onClick={complete} disabled={busy}>
+                Abschliessen &amp; abgeben
+              </button>
+            </div>
+          </>
         ) : (
           <p className="muted">Status gesperrt - Aenderungen nur ueber naechste Workflow-Stufe.</p>
         )}
-        {missing.length > 0 ? (
-          <div className="alert alert-error">
-            Pflichtfelder fehlen:
-            <ul>
-              {missing.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
         {NEXT_STATUS[inspection.status]?.length && locked ? (
           <div className="btn-row">
             {NEXT_STATUS[inspection.status].map((status) => (
@@ -257,32 +275,38 @@ export default function InspectionDetail({ inspectionId, userName, onBack }: Pro
         </section>
       ) : null}
 
-      {schema?.sections.map((section) => (
-        <section className="card" key={section.id}>
-          <h3>{section.title}</h3>
-          {section.fields.map((field) => {
-            let value = values[field.id];
-            if (field.type === "auto_user" && !value) value = userName;
-            if (field.type === "auto_datetime" && !value)
-              value = new Date().toLocaleString("de-DE");
-            return (
+      {schema?.sections.map((section, sectionIndex) => {
+        const sectionFields = section.fields ?? [];
+        const sectionFilled = sectionFields.filter(
+          (f) => f.type.startsWith("auto_") || isFilled(values[f.id])
+        ).length;
+        return (
+          <details className="card collapsible" open={sectionIndex === 0 || !locked} key={section.id}>
+            <summary className="collapsible-summary">
+              <b>{section.title}</b>
+              <span className={`chip ${sectionFilled === sectionFields.length ? "chip-done" : ""}`}>
+                {sectionFilled}/{sectionFields.length}
+              </span>
+            </summary>
+            {sectionFields.map((field) => (
               <FieldRenderer
                 key={field.id}
                 field={field}
-                value={value}
+                value={values[field.id]}
                 onChange={(v) => {
                   setValues((current) => ({ ...current, [field.id]: v }));
                   setDirty(true);
+                  setMissingRequired([]);
                 }}
                 disabled={locked}
                 entityType="inspection"
                 entityId={inspection.id}
                 attachments={attachments}
               />
-            );
-          })}
-        </section>
-      ))}
+            ))}
+          </details>
+        );
+      })}
 
       <section className="card">
         <h3>Mängel an dieser Prüfung</h3>
@@ -335,43 +359,50 @@ export default function InspectionDetail({ inspectionId, userName, onBack }: Pro
 
       <section className="card">
         <h3>Anhaenge (allgemein)</h3>
-        <label className="btn btn-secondary btn-sm file-label">
-          Datei hochladen
-          <input
-            type="file"
-            hidden
-            onChange={async (event) => {
-              const file = event.target.files?.[0];
-              event.target.value = "";
-              if (!file) return;
-              try {
-                await api.uploadAttachment(file, {
-                  entityType: "inspection",
-                  entityId: inspection.id,
-                  kind: "document"
-                });
-                window.dispatchEvent(new CustomEvent("hwe-attachments-changed"));
-              } catch (error) {
-                notify(String(error), true);
-              }
-            }}
-          />
-        </label>
+        <div
+          className={`dropzone big ${uploadingMany ? "busy" : ""}`}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            if (e.dataTransfer.files.length && !locked) void uploadGeneral(e.dataTransfer.files);
+          }}
+        >
+          {uploadingMany ? "Lade hoch..." : "Fotos / Dokumente hierher ziehen"}
+        </div>
+        {!locked ? (
+          <label className="btn btn-secondary btn-sm file-label general-upload">
+            Kamera / Dateiauswahl
+            <input
+              type="file"
+              hidden
+              multiple
+              accept="image/*"
+              capture="environment"
+              onChange={(e) => {
+                const files = e.target.files;
+                e.target.value = "";
+                if (files?.length) void uploadGeneral(files);
+              }}
+            />
+          </label>
+        ) : null}
         <div className="thumb-row">
           {attachments
             .filter((attachment) => !attachment.field_id)
             .map((attachment) => (
-              <a
-                key={attachment.id}
-                className="file-chip"
-                href={attachment.url}
-                download={attachment.filename}
-              >
-                {attachment.filename} ({Math.round(attachment.size / 1024)} KB)
-              </a>
+              <AttachmentImage key={attachment.id} attachment={attachment} />
             ))}
         </div>
       </section>
+
+      {dirty && !locked ? (
+        <div className="floating-save">
+          <span className="chip">{progress.filled}/{progress.total}</span>
+          <button className="btn btn-primary btn-lg" onClick={save} disabled={busy}>
+            Aenderungen speichern
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

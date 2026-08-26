@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Attachment, FormField } from "../types";
 import SignaturePad from "./SignaturePad";
 import AttachmentImage from "./AttachmentImage";
@@ -13,18 +14,12 @@ interface FieldRendererProps {
   attachments?: Attachment[];
 }
 
-const CHOICE_TYPES = new Set(["yes_no", "yes_no_na", "choice"]);
+const BIG_TOGGLE_TYPES = new Set(["yes_no", "yes_no_na"]);
 
 function optionsFor(field: FormField): string[] {
   if (field.type === "yes_no") return ["ja", "nein"];
   if (field.type === "yes_no_na") return ["ja", "nein", "n/a"];
   return field.options ?? [];
-}
-
-function isFilled(value: unknown): boolean {
-  if (value === undefined || value === null || value === "") return false;
-  if (Array.isArray(value) && value.length === 0) return false;
-  return true;
 }
 
 export default function FieldRenderer({
@@ -36,9 +31,59 @@ export default function FieldRenderer({
   entityId = "",
   attachments = []
 }: FieldRendererProps) {
+  const [uploading, setUploading] = useState(false);
   const inputId = `f_${field.id}`;
   const common = { id: inputId, disabled };
   const relevant = attachments.filter((a) => a.field_id === field.id);
+
+  async function uploadFiles(files: FileList | File[]) {
+    if (!entityId) return;
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        await api.uploadAttachment(file, {
+          entityType,
+          entityId,
+          kind:
+            field.type !== "file" && file.type.startsWith("image/")
+              ? "photo"
+              : "document",
+          fieldId: field.id
+        });
+      }
+      window.dispatchEvent(new CustomEvent("hwe-attachments-changed"));
+    } catch (error) {
+      notify(String(error), true);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function bigToggle() {
+    const options = optionsFor(field);
+    return (
+      <div className="segmented">
+        {options.map((option) => (
+          <button
+            key={option}
+            type="button"
+            disabled={disabled}
+            className={`seg ${value === option ? "seg-active" : ""} ${
+              option === "ja" ? "seg-yes" : option === "nein" ? "seg-no" : ""
+            }`}
+            onClick={() => onChange(option)}
+          >
+            {option.toUpperCase()}
+          </button>
+        ))}
+        {!disabled && value ? (
+          <button type="button" className="seg seg-reset" onClick={() => onChange("")}>
+            &times;
+          </button>
+        ) : null}
+      </div>
+    );
+  }
 
   let control: JSX.Element;
 
@@ -101,42 +146,43 @@ export default function FieldRenderer({
             onChange={(v) => onChange(v)}
             disabled={disabled}
           />
-          {isFilled(value) ? <img className="thumb" src={String(value)} alt="Unterschrift" /> : null}
+          {value ? <img className="thumb" src={String(value)} alt="Unterschrift" /> : null}
         </>
       );
       break;
     case "photo":
-    case "file":
+    case "file": {
+      const accept = field.type === "photo" ? "image/*" : undefined;
       control = (
         <div className="attach-block">
           {!disabled && entityId ? (
-            <label className="btn btn-secondary btn-sm file-label">
-              {field.type === "photo" ? "Foto aufnehmen / hochladen" : "Datei anhaengen"}
-              <input
-                type="file"
-                hidden
-                accept={field.type === "photo" ? "image/*" : undefined}
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  e.target.value = "";
-                  if (!file || !entityId) return;
-                  try {
-                    await api.uploadAttachment(file, {
-                      entityType,
-                      entityId,
-                      kind:
-                        field.type === "photo" && (file.type.startsWith("image/") || !file.type)
-                          ? "photo"
-                          : "document",
-                      fieldId: field.id
-                    });
-                    window.dispatchEvent(new CustomEvent("hwe-attachments-changed"));
-                  } catch (error) {
-                    notify(String(error), true);
-                  }
+            <>
+              <label className={`btn btn-secondary btn-sm file-label ${uploading ? "btn-busy" : ""}`}>
+                {uploading ? "Lade hoch..." : field.type === "photo" ? "Kamera / Foto" : "Datei anhaengen"}
+                <input
+                  type="file"
+                  hidden
+                  multiple={field.type === "photo"}
+                  accept={accept}
+                  capture={field.type === "photo" ? "environment" : undefined}
+                  onChange={(e) => {
+                    const files = e.target.files;
+                    e.target.value = "";
+                    if (files?.length) void uploadFiles(files);
+                  }}
+                />
+              </label>
+              <div
+                className="dropzone"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (!disabled && e.dataTransfer.files.length) void uploadFiles(e.dataTransfer.files);
                 }}
-              />
-            </label>
+              >
+                oder Bilder hierher ziehen
+              </div>
+            </>
           ) : null}
           <div className="thumb-row">
             {relevant.map((attachment) => (
@@ -146,8 +192,11 @@ export default function FieldRenderer({
         </div>
       );
       break;
+    }
     default:
-      if (CHOICE_TYPES.has(field.type)) {
+      if (BIG_TOGGLE_TYPES.has(field.type)) {
+        control = bigToggle();
+      } else if (field.type === "choice") {
         control = (
           <select {...common} value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}>
             <option value="">-- bitte waehlen --</option>
@@ -179,9 +228,7 @@ export default function FieldRenderer({
             ))}
           </div>
         );
-      } else if (field.type === "auto_user") {
-        control = <input {...common} type="text" value={String(value ?? "")} readOnly />;
-      } else if (field.type === "auto_datetime") {
+      } else if (field.type.startsWith("auto_")) {
         control = <input {...common} type="text" value={String(value ?? "")} readOnly />;
       } else {
         control = (
@@ -197,7 +244,7 @@ export default function FieldRenderer({
   }
 
   return (
-    <div className={`field ${field.required && !isFilled(value) ? "field-missing" : ""}`}>
+    <div className={`field ${field.required && (value === undefined || value === null || value === "") ? "field-missing" : ""}`}>
       <label htmlFor={inputId}>
         {field.label}
         {field.required ? <span className="req"> *</span> : null}

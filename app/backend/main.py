@@ -18,9 +18,9 @@ from app.backend.api import (
     system,
     users,
 )
-from app.backend.bootstrap import ensure_bootstrap
 from app.backend.config import REPO_ROOT, settings
 from app.backend.db import engine
+from app.backend.set_admin_password import ensure_bootstrap
 from migrations.runner import run_migrations
 
 logging.basicConfig(
