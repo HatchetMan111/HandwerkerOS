@@ -87,6 +87,28 @@ Jede Operation enthält `operation_id` (Client-UUID), `entity`, `entity_id`, `op
 Idempotenz ist datenbankseitig: `operation_id` ist Primärschlüssel der
 `sync_operations`-Tabelle; Replays liefern das ursprüngliche Ergebnis ohne erneute Anwendung.
 
+## Web-UI / PWA
+
+Das Frontend (React + TypeScript + Vite) liegt fertig gebaut unter `frontend/dist/` im Repo
+und wird vom Backend automatisch ausgeliefert – kein Node.js im LXC nötig.
+
+Funktionen: Login mit Rollen, Dashboard mit Schnellerfassung, Kunden & Projekte,
+Formularvorlagen inkl. Versionsanlage, Prüfungsdetails mit dynamischem Formular-Renderer
+(alle Feldtypen inkl. Unterschriften-Pad und Foto-/Datei-Upload je Feld), Mängelerfassung
+mit Status, Abschluss-Workflow, Offline-Badge, Toasts.
+
+Entwicklung:
+
+```bash
+cd frontend && npm install   # oder pnpm install
+npm run dev                  # http://localhost:5173 mit Proxy auf :8080
+npm run build                # produziert frontend/dist/
+npm run typecheck
+```
+
+Nach Code-Änderungen: `npm run build` committen (dist liegt im Repo), damit der
+LXC-Installer sie ohne Build-Schritt verteilen kann.
+
 ## Installation (Proxmox LXC)
 
 Einzeiler auf dem Proxmox-Host (als root):
