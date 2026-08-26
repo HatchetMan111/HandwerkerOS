@@ -1,0 +1,22 @@
+[Unit]
+Description=HandwerkerOS - lokale Handwerker-Dokumentationsplattform
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=handwerkeros
+Group=handwerkeros
+WorkingDirectory=/opt/handwerkeros
+Environment=HANDWERK_DATA_DIR=/opt/handwerkeros/storage/data
+Environment=HANDWERK_STORAGE_DIR=/opt/handwerkeros/storage/files
+ExecStart=/opt/handwerkeros/.venv/bin/uvicorn app.backend.main:app --host 0.0.0.0 --port 8080
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/handwerkeros/storage
+
+[Install]
+WantedBy=multi-user.target
