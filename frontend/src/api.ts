@@ -196,3 +196,206 @@ export function formatDate(value?: string | null): string {
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" });
 }
+
+export interface SyncResult {
+  operation_id: string;
+  entity: string;
+  entity_id: string;
+  status: "applied" | "duplicate" | "conflict" | "rejected";
+  server_version?: number | null;
+  error?: string | null;
+  conflict?: Record<string, unknown> | null;
+  replayed?: boolean;
+}
+
+export interface SyncBatchResponse {
+  results: SyncResult[];
+  server_time: string;
+}
+
+type TEntry = import("./types").TimeEntry;
+type MItem = import("./types").MaterialItem;
+type MUsage = import("./types").MaterialUsage;
+type Assign = import("./types").Assignment;
+type Invoice = import("./types").Invoice;
+
+interface ApiExtra {
+  postSyncBatch(
+    deviceId: string,
+    operations: Array<Record<string, unknown>>
+  ): Promise<SyncBatchResponse>;
+  syncChangesFull<T>(limit?: number): Promise<T & { server_time: string }>;
+  listTimeEntries(statusFilter?: string): Promise<TEntry[]>;
+  createTimeEntry(body: {
+    project_id: string;
+    work_date: string;
+    hours: number;
+    activity?: string;
+  }): Promise<TEntry>;
+  patchTimeEntry(
+    id: string,
+    body: { base_version: number; hours?: number; activity?: string; status?: string }
+  ): Promise<TEntry>;
+  deleteTimeEntry(id: string): Promise<void>;
+  listMaterials(): Promise<MItem[]>;
+  createMaterial(body: {
+    name: string;
+    unit?: string;
+    price_cents: number;
+    article_number?: string;
+  }): Promise<MItem>;
+  createUsage(body: {
+    project_id: string;
+    work_date: string;
+    material_id?: string | null;
+    name?: string;
+    quantity: number;
+    price_cents?: number | null;
+    note?: string;
+  }): Promise<MUsage>;
+  listUsages(projectId?: string): Promise<MUsage[]>;
+  deleteUsage(id: string): Promise<void>;
+  listAssignments(weekStart?: string): Promise<Assign[]>;
+  createAssignment(body: {
+    project_id: string;
+    user_id: string;
+    work_date: string;
+    hours_planned?: number | null;
+    note?: string;
+  }): Promise<Assign>;
+  previewInvoice(body: {
+    project_id: string;
+    hourly_rate_cents: number;
+    tax_percent: number;
+  }): Promise<Record<string, unknown>>;
+  listInvoices(): Promise<Invoice[]>;
+  createInvoice(body: {
+    project_id: string;
+    hourly_rate_cents: number;
+    tax_percent: number;
+  }): Promise<Invoice>;
+  patchInvoiceStatus(id: string, status: string): Promise<Invoice>;
+  deleteInvoice(id: string): Promise<void>;
+}
+
+function attach<T extends object>(target: T, extra: ApiExtra): T & ApiExtra {
+  return Object.assign(target, extra) as T & ApiExtra;
+}
+
+void extendNow();
+
+function extendNow(): void {
+  attach(api as unknown as Record<string, unknown>, {
+    postSyncBatch(
+      deviceId: string,
+      operations: Array<Record<string, unknown>>
+    ): Promise<SyncBatchResponse> {
+      return request<SyncBatchResponse>("/api/sync", {
+        method: "POST",
+        body: JSON.stringify({
+          device_id: deviceId,
+          device_name: "Web-App",
+          device_platform: "web-pwa",
+          operations
+        })
+      });
+    },
+    syncChangesFull<T>(limit = 500): Promise<T & { server_time: string }> {
+      return request<T & { server_time: string }>(`/api/sync/changes?limit=${limit}`);
+    },
+    listTimeEntries(statusFilter?: string): Promise<TEntry[]> {
+      const query = statusFilter ? `?status_filter=${statusFilter}` : "";
+      return request<TEntry[]>(`/api/time/entries${query}`);
+    },
+    createTimeEntry(body: {
+      project_id: string;
+      work_date: string;
+      hours: number;
+      activity?: string;
+    }): Promise<TEntry> {
+      return request("/api/time/entries", jsonBody(body));
+    },
+    patchTimeEntry(
+      id: string,
+      body: { base_version: number; hours?: number; activity?: string; status?: string }
+    ): Promise<TEntry> {
+      return request(`/api/time/entries/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body)
+      });
+    },
+    deleteTimeEntry(id: string): Promise<void> {
+      return request(`/api/time/entries/${id}`, { method: "DELETE" });
+    },
+    listMaterials(): Promise<MItem[]> {
+      return request("/api/materials");
+    },
+    createMaterial(body: {
+      name: string;
+      unit?: string;
+      price_cents: number;
+      article_number?: string;
+    }): Promise<MItem> {
+      return request("/api/materials", jsonBody(body));
+    },
+    createUsage(body: {
+      project_id: string;
+      work_date: string;
+      material_id?: string | null;
+      name?: string;
+      quantity: number;
+      price_cents?: number | null;
+      note?: string;
+    }): Promise<MUsage> {
+      return request("/api/materials/usages", jsonBody(body));
+    },
+    listUsages(projectId?: string): Promise<MUsage[]> {
+      const query = projectId ? `?project_id=${projectId}` : "";
+      return request(`/api/materials/usages${query}`);
+    },
+    deleteUsage(id: string): Promise<void> {
+      return request(`/api/materials/usages/${id}`, { method: "DELETE" });
+    },
+    listAssignments(weekStart?: string): Promise<Assign[]> {
+      const query = weekStart ? `?week_start=${weekStart}` : "";
+      return request(`/api/assignments${query}`);
+    },
+    createAssignment(body: {
+      project_id: string;
+      user_id: string;
+      work_date: string;
+      hours_planned?: number | null;
+      note?: string;
+    }): Promise<Assign> {
+      return request("/api/assignments", jsonBody(body));
+    },
+    previewInvoice(body: {
+      project_id: string;
+      hourly_rate_cents: number;
+      tax_percent: number;
+    }): Promise<Record<string, unknown>> {
+      return request("/api/invoices/preview", jsonBody(body));
+    },
+    listInvoices(): Promise<Invoice[]> {
+      return request("/api/invoices");
+    },
+    createInvoice(body: {
+      project_id: string;
+      hourly_rate_cents: number;
+      tax_percent: number;
+    }): Promise<Invoice> {
+      return request("/api/invoices", jsonBody(body));
+    },
+    patchInvoiceStatus(id: string, status: string): Promise<Invoice> {
+      return request(`/api/invoices/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status })
+      });
+    },
+    deleteInvoice(id: string): Promise<void> {
+      return request(`/api/invoices/${id}`, { method: "DELETE" });
+    }
+  } satisfies ApiExtra);
+}
+
+export const apiX = api as unknown as typeof api & ApiExtra;

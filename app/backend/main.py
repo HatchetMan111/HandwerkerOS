@@ -16,6 +16,7 @@ from app.backend.api import (
     projects,
     sync,
     system,
+    timematerial,
     users,
 )
 from app.backend.config import REPO_ROOT, settings
@@ -64,6 +65,10 @@ def create_app() -> FastAPI:
         defects.router,
         files.router,
         sync.router,
+        timematerial.router,
+        timematerial.material_router,
+        timematerial.assignment_router,
+        timematerial.invoice_router,
     ):
         application.include_router(router, prefix="/api")
 

@@ -132,3 +132,77 @@ def serialize_attachment(attachment: Attachment) -> dict[str, Any]:
         "captured_at": iso_z(attachment.device_created_at),
         "created_at": iso_z(attachment.created_at),
     }
+
+
+def serialize_time_entry(entry) -> dict:
+    return {
+        "id": entry.id,
+        "project_id": entry.project_id,
+        "user_id": entry.user_id,
+        "work_date": entry.work_date,
+        "hours": entry.hours,
+        "activity": entry.activity,
+        "status": entry.status,
+        "version": entry.version,
+        "updated_at": iso_z(entry.updated_at),
+    }
+
+
+def serialize_material_item(item) -> dict:
+    return {
+        "id": item.id,
+        "article_number": item.article_number,
+        "name": item.name,
+        "unit": item.unit,
+        "price_cents": item.price_cents,
+    }
+
+
+def serialize_material_usage(usage) -> dict:
+    return {
+        "id": usage.id,
+        "project_id": usage.project_id,
+        "material_id": usage.material_id,
+        "name": usage.name,
+        "unit": usage.unit,
+        "quantity": usage.quantity,
+        "price_cents": usage.price_cents,
+        "work_date": usage.work_date,
+        "note": usage.note,
+        "version": usage.version,
+        "updated_at": iso_z(usage.updated_at),
+    }
+
+
+def serialize_assignment(assignment) -> dict:
+    return {
+        "id": assignment.id,
+        "project_id": assignment.project_id,
+        "user_id": assignment.user_id,
+        "work_date": assignment.work_date,
+        "hours_planned": assignment.hours_planned,
+        "note": assignment.note,
+        "status": assignment.status,
+        "updated_at": iso_z(assignment.updated_at),
+    }
+
+
+def serialize_invoice(invoice) -> dict:
+    return {
+        "id": invoice.id,
+        "number": invoice.number,
+        "project_id": invoice.project_id,
+        "customer_name": invoice.customer_name,
+        "project_name": invoice.project_name,
+        "hourly_rate_cents": invoice.hourly_rate_cents,
+        "tax_percent": invoice.tax_percent,
+        "lines": invoice.lines_json or [],
+        "labor_hours": invoice.labor_hours,
+        "subtotal_cents": invoice.subtotal_cents,
+        "vat_cents": invoice.vat_cents,
+        "total_cents": invoice.total_cents,
+        "status": invoice.status,
+        "period_from": invoice.period_from,
+        "period_to": invoice.period_to,
+        "created_at": iso_z(invoice.created_at),
+    }

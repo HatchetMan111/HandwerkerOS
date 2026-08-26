@@ -24,17 +24,17 @@ export default function Dashboard({ go }: { go: (view: string) => void }) {
       <section className="card">
         <h2>Schnellerfassung</h2>
         <div className="quick-grid">
-          <button className="btn btn-primary btn-lg" onClick={() => go("inspections")}>
-            Pruefung starten
+          <button className="btn btn-primary btn-lg" onClick={() => go("time")}>
+            Stunden erfassen
+          </button>
+          <button className="btn btn-primary btn-lg" onClick={() => go("material")}>
+            Material verbrauchen
           </button>
           <button className="btn btn-secondary btn-lg" onClick={() => go("inspections")}>
-            Mangel erfassen
+            Checkliste starten
           </button>
-          <button className="btn btn-secondary btn-lg" onClick={() => go("projects")}>
-            Projekte / Baustellen
-          </button>
-          <button className="btn btn-secondary btn-lg" onClick={() => go("forms")}>
-            Formulare
+          <button className="btn btn-secondary btn-lg" onClick={() => go("planung")}>
+            Einsatzplan
           </button>
         </div>
       </section>

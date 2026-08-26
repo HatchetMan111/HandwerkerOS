@@ -2,7 +2,7 @@
 
 Lokale, offline-first Handwerker-Dokumentationsplattform mit PWA-Client und synchronisierter Serverdatenbank.
 
-**Version:** siehe [VERSION](VERSION) · **Status:** Phase 1 (Core) + Sync-Kern implementiert
+**Version:** siehe [VERSION](VERSION) · **Status:** Core + Web-UI + Zeit/Material + Offline-Sync
 
 ## Architektur
 
@@ -86,6 +86,24 @@ Jede Operation enthält `operation_id` (Client-UUID), `entity`, `entity_id`, `op
 
 Idempotenz ist datenbankseitig: `operation_id` ist Primärschlüssel der
 `sync_operations`-Tabelle; Replays liefern das ursprüngliche Ergebnis ohne erneute Anwendung.
+
+## Zeit & Material + Offline (Phase 5/8, v0.4)
+
+**Offline-faehig:** Stundenzettel und Materialverbrauch funktionieren **ohne Empfang**
+(IndexedDB-Sync-Queue, Service Worker App-Shell). Badge zeigt offene Aenderungen,
+automatischer Upload bei Netzrueckkehr - idempotent ueber operation_id.
+
+| Feature | Wo |
+|---|---|
+| Stundenzettel (Wochenansicht, Abgeben/Freigabe) | Tab *Zeit* |
+| Materialverbrauch aus Katalog oder Freitext | Tab *Material* |
+| Einsatzplanung pro Woche | Mehr -> Einsatzplanung |
+| Rechnung = Zeit x Satz + Material (Vorschau, Drucken/PDF) | Mehr -> Rechnungen |
+| Gewaehrleistungs-Fotos je Baustelle | Mehr -> Gewaehrleistung |
+| Formular-Vorausfuellung fuer Checklisten | Formular-Builder -> Feld -> Vorausfuellung |
+
+Freigegebene Zeiten sind rechnungssicher gesperrt; Freigabe nur mit
+`reports.create` (Betriebsleiter/Bauleiter/Admin).
 
 ## Web-UI / PWA
 

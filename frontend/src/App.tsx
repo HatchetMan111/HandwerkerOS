@@ -10,6 +10,13 @@ import FormBuilder from "./views/FormBuilder";
 import Inspections from "./views/Inspections";
 import InspectionDetail from "./views/InspectionDetail";
 import Admin from "./views/Admin";
+import Timesheets from "./views/Timesheets";
+import Materials from "./views/Materials";
+import Planning from "./views/Planning";
+import Invoices from "./views/Invoices";
+import Warranty from "./views/Warranty";
+import More from "./views/More";
+import { pendingCount, subscribe } from "./idb";
 
 type View =
   | { name: "dashboard" }
@@ -19,6 +26,12 @@ type View =
   | { name: "builder"; template: FormTemplate | null }
   | { name: "inspections" }
   | { name: "inspection"; id: string }
+  | { name: "time" }
+  | { name: "material" }
+  | { name: "planung" }
+  | { name: "invoices" }
+  | { name: "gewaehr" }
+  | { name: "more" }
   | { name: "admin" };
 
 interface Toast {
@@ -60,6 +73,12 @@ export default function App() {
   const [view, setView] = useState<View>({ name: "dashboard" });
   const [toasts, setToasts] = useState<Toast[]>([]);
   const online = useOnline();
+  const [pendingOps, setPendingOps] = useState(0);
+
+  useEffect(() => {
+    void pendingCount().then(setPendingOps);
+    return subscribe(() => void pendingCount().then(setPendingOps));
+  }, []);
 
   useEffect(() => {
     if (!getToken()) {
@@ -102,21 +121,29 @@ export default function App() {
 
   const canManageUsers = user.permissions.includes("users.manage");
 
-  const tabs: Array<{ view: View; label: string; icon: string }> = [
+  const tabs: Array<{ view: View; label: string; icon: string; badge?: number }> = [
     { view: { name: "dashboard" }, label: "Start", icon: "\u2302" },
-    { view: { name: "projects" }, label: "Projekte", icon: "\u2692" },
+    { view: { name: "time" }, label: "Zeit", icon: "\u23F1" },
+    { view: { name: "material" }, label: "Material", icon: "\uD83D\uDD28" },
     { view: { name: "inspections" }, label: "Pruefungen", icon: "\u2713" },
-    { view: { name: "forms" }, label: "Formulare", icon: "\u25A6" },
-    ...(canManageUsers ? [{ view: { name: "admin" } as View, label: "Admin", icon: "\u2699" }] : [])
+    { view: { name: "more" }, label: "Mehr", icon: "\u2261" }
   ];
 
   const activeTabName =
-    view.name === "inspection" || view.name === "builder" ? null : (view.name as string);
+    view.name === "inspection" || view.name === "builder"
+      ? view.name === "inspection"
+        ? "inspections"
+        : "forms"
+      : (view.name as string);
 
   function go(target: string) {
     const [kind, id] = target.split(":");
     if (kind === "inspection" && id) setView({ name: "inspection", id });
-    else if (["dashboard", "customers", "projects", "forms", "inspections", "admin"].includes(kind))
+    else if (
+      ["dashboard", "customers", "projects", "forms", "inspections", "time", "material", "planung", "invoices", "gewaehr", "more", "admin"].includes(
+        kind
+      )
+    )
       setView({ name: kind } as View);
   }
 
@@ -126,9 +153,17 @@ export default function App() {
         <span className="brand">
           <span className="logo-dot" /> HandwerkerOS
         </span>
-        <span className={`sync-badge ${online ? "online" : "offline"}`}>
-          {online ? "\u25CF Online" : "\u25CB Offline"}
-        </span>
+        <button
+          className={`sync-badge ${online && pendingOps === 0 ? "online" : "offline"}`}
+          onClick={() => setView({ name: "more" })}
+          title="Sync-Status"
+        >
+          {!online
+            ? `\u25CB Offline${pendingOps ? ` \u26A1${pendingOps}` : ""}`
+            : pendingOps > 0
+              ? `\u25CF Online \u00B7 ${pendingOps} offen`
+              : "\u25CF Sync OK"}
+        </button>
         <span className="user-chip" title={user.email}>
           {user.name}
         </span>
@@ -144,7 +179,7 @@ export default function App() {
         </button>
       </header>
 
-      <main className={`content ${view.name === "inspection" && user.permissions.includes("users.manage") === false ? "" : ""}`}>
+      <main className={`content ${view.name === "inspection" ? "detail-view" : ""}`}>
         {view.name === "dashboard" ? <Dashboard go={go} /> : null}
         {view.name === "customers" ? <Customers /> : null}
         {view.name === "projects" ? <Projects /> : null}
@@ -173,6 +208,18 @@ export default function App() {
         {view.name === "inspections" ? (
           <Inspections openInspection={(id) => setView({ name: "inspection", id })} />
         ) : null}
+        {view.name === "time" ? (
+          <Timesheets userId={user.id} canApprove={user.permissions.includes("reports.create")} />
+        ) : null}
+        {view.name === "material" ? (
+          <Materials canManageCatalog={user.permissions.includes("projects.write")} />
+        ) : null}
+        {view.name === "planung" ? (
+          <Planning userId={user.id} isPlanner={user.permissions.includes("projects.write")} />
+        ) : null}
+        {view.name === "invoices" ? <Invoices /> : null}
+        {view.name === "gewaehr" ? <Warranty /> : null}
+        {view.name === "more" ? <More user={user} go={go} /> : null}
         {view.name === "inspection" ? (
           <InspectionDetail
             inspectionId={view.id}

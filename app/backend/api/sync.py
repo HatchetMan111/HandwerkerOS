@@ -9,13 +9,18 @@ from app.backend.models.customer import Customer
 from app.backend.models.form import FormTemplate, FormVersion
 from app.backend.models.inspection import Defect, Inspection
 from app.backend.models.project import Project
+from app.backend.models.timematerial import Assignment, MaterialItem, MaterialUsage, TimeEntry
 from app.backend.models.user import User
 from app.backend.services.serializers import (
+    serialize_assignment,
     serialize_customer,
     serialize_defect,
     serialize_form_version,
     serialize_inspection,
+    serialize_material_item,
+    serialize_material_usage,
     serialize_project,
+    serialize_time_entry,
 )
 from app.backend.sync.engine import SyncRequest, process
 from app.backend.timeutil import iso_z, parse_ts, utcnow
@@ -70,4 +75,23 @@ def pull_changes(
         "form_versions": [serialize_form_version(v) for v in versions],
         "inspections": [serialize_inspection(i) for i in inspections],
         "defects": [serialize_defect(d) for d in defects],
+        "time_entries": [
+            serialize_time_entry(e)
+            for e in db.query(TimeEntry).filter(TimeEntry.updated_at > since_dt).limit(limit).all()
+        ],
+        "material_usages": [
+            serialize_material_usage(u)
+            for u in db.query(MaterialUsage)
+            .filter(MaterialUsage.updated_at > since_dt)
+            .limit(limit)
+            .all()
+        ],
+        "assignments": [
+            serialize_assignment(a)
+            for a in db.query(Assignment)
+            .filter(Assignment.updated_at > since_dt)
+            .limit(limit)
+            .all()
+        ],
+        "materials": [serialize_material_item(m) for m in db.query(MaterialItem).limit(500).all()],
     }

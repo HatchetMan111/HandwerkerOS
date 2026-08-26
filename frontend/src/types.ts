@@ -106,3 +106,85 @@ export interface Attachment {
   captured_at?: string | null;
   created_at?: string;
 }
+
+export type TimeEntryStatus = "draft" | "submitted" | "approved" | "rejected";
+
+export interface TimeEntry {
+  id: string;
+  project_id: string;
+  user_id: string;
+  work_date: string;
+  hours: number;
+  activity: string;
+  status: TimeEntryStatus;
+  version: number;
+  unsynced?: boolean;
+  updated_at?: string;
+}
+
+export interface MaterialItem {
+  id: string;
+  article_number?: string;
+  name: string;
+  unit: string;
+  price_cents: number;
+}
+
+export interface MaterialUsage {
+  id: string;
+  project_id: string;
+  material_id?: string | null;
+  name: string;
+  unit: string;
+  quantity: number;
+  price_cents: number;
+  work_date: string;
+  note?: string;
+  version: number;
+  unsynced?: boolean;
+  updated_at?: string;
+}
+
+export type AssignmentStatus = "planned" | "confirmed" | "done" | "canceled";
+
+export interface Assignment {
+  id: string;
+  project_id: string;
+  user_id: string;
+  work_date: string;
+  hours_planned?: number | null;
+  note?: string;
+  status: AssignmentStatus;
+  updated_at?: string;
+}
+
+export type InvoiceLineType = "labor" | "material" | "custom";
+
+export interface InvoiceLine {
+  type: InvoiceLineType;
+  ref_id?: string | null;
+  description: string;
+  quantity: number;
+  unit: string;
+  unit_price_cents: number;
+  total_cents: number;
+}
+
+export type InvoiceStatus = "draft" | "final" | "cancelled";
+
+export interface Invoice {
+  id: string;
+  number: string;
+  project_id: string;
+  customer_name: string;
+  project_name: string;
+  hourly_rate_cents: number;
+  tax_percent: number;
+  lines: InvoiceLine[];
+  labor_hours: number;
+  subtotal_cents: number;
+  vat_cents: number;
+  total_cents: number;
+  status: InvoiceStatus;
+  created_at?: string;
+}

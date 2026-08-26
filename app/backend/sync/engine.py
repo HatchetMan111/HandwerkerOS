@@ -9,7 +9,9 @@ from sqlalchemy.orm import Session
 from app.backend.config import settings
 from app.backend.models.device import Device
 from app.backend.models.inspection import Defect, Inspection
+from app.backend.models.project import Project
 from app.backend.models.sync import SyncOperation
+from app.backend.models.timematerial import MaterialItem, MaterialUsage, TimeEntry
 from app.backend.services import audit, entities
 from app.backend.services.entities import (
     merge_defect_data,
@@ -29,7 +31,7 @@ DUPLICATE = "duplicate"
 
 class OperationIn(BaseModel):
     operation_id: str = Field(min_length=8, max_length=64)
-    entity: Literal["inspection", "defect"]
+    entity: Literal["inspection", "defect", "time_entry", "material_usage"]
     entity_id: str = Field(min_length=8, max_length=64)
     operation: Literal["create", "update", "delete"]
     payload: dict[str, Any] = Field(default_factory=dict)
@@ -159,6 +161,186 @@ def _apply_inspection(
     return REJECTED, None, None, "delete_not_supported"
 
 
+TIME_FIELDS = ("work_date", "hours", "activity", "status")
+
+
+def snapshot_time_entry(entry: TimeEntry) -> dict[str, Any]:
+    return {
+        "project_id": entry.project_id,
+        "user_id": entry.user_id,
+        "work_date": entry.work_date,
+        "hours": entry.hours,
+        "activity": entry.activity,
+        "status": entry.status,
+        "version": entry.version,
+    }
+
+
+def _apply_time_entry(
+    ctx: "_Ctx", db: Session, op: OperationIn
+) -> tuple[str, int | None, dict[str, Any] | None, str | None]:
+    row = db.get(TimeEntry, op.entity_id)
+
+    if op.operation == "create":
+        if row is not None:
+            return DUPLICATE, row.version, None, None
+        payload = op.payload
+        if db.get(Project, str(payload.get("project_id", ""))) is None:
+            return REJECTED, None, None, "not_found"
+        target_user = str(payload.get("user_id") or ctx.user.id)
+        entry = TimeEntry(
+            id=op.entity_id,
+            project_id=str(payload.get("project_id", "")),
+            user_id=target_user,
+            work_date=str(payload.get("work_date", "")),
+            hours=float(payload.get("hours", 0)),
+            activity=str(payload.get("activity", "")),
+            device_created_at=parse_ts(op.client_updated_at),
+        )
+        db.add(entry)
+        db.flush()
+        ctx.audit(
+            action="TIME_ENTRY_CREATED",
+            entity="time_entry",
+            entity_id=entry.id,
+            after=snapshot_time_entry(entry),
+        )
+        return APPLIED, entry.version, None, None
+
+    if op.operation == "update":
+        if row is None:
+            return REJECTED, None, None, "not_found"
+        if op.base_version is None:
+            return REJECTED, row.version, None, "base_version_required"
+        lww = row.version != op.base_version
+        if lww and not _lww_applies(op, row.updated_at):
+            return (
+                CONFLICT,
+                row.version,
+                _conflict_payload(op, snapshot_time_entry(row), row.version),
+                None,
+            )
+        before = snapshot_time_entry(row)
+        for key in TIME_FIELDS:
+            if key in op.payload and op.payload[key] is not None:
+                setattr(row, key, op.payload[key])
+        row.version += 1
+        row.updated_at = utcnow()
+        detail = {"resolution": "lww"} if lww else None
+        ctx.audit(
+            action="TIME_ENTRY_UPDATED",
+            entity="time_entry",
+            entity_id=row.id,
+            before=before,
+            after=snapshot_time_entry(row),
+            detail=detail,
+        )
+        return APPLIED, row.version, None, None
+
+    return REJECTED, None, None, "delete_not_supported"
+
+
+USAGE_FIELDS = ("name", "unit", "quantity", "price_cents", "work_date", "note")
+
+
+def snapshot_usage(usage: MaterialUsage) -> dict[str, Any]:
+    return {
+        "project_id": usage.project_id,
+        "name": usage.name,
+        "unit": usage.unit,
+        "quantity": usage.quantity,
+        "price_cents": usage.price_cents,
+        "work_date": usage.work_date,
+        "note": usage.note,
+        "version": usage.version,
+    }
+
+
+def _apply_material_usage(
+    ctx: "_Ctx", db: Session, op: OperationIn
+) -> tuple[str, int | None, dict[str, Any] | None, str | None]:
+    row = db.get(MaterialUsage, op.entity_id)
+
+    if op.operation == "create":
+        if row is not None:
+            return DUPLICATE, row.version, None, None
+        payload = op.payload
+        material_id = payload.get("material_id")
+        catalog = db.get(MaterialItem, str(material_id)) if material_id else None
+        if material_id and catalog is None:
+            return REJECTED, None, None, "material_not_found"
+        if db.get(Project, str(payload.get("project_id", ""))) is None:
+            return REJECTED, None, None, "not_found"
+        usage = MaterialUsage(
+            id=op.entity_id,
+            project_id=str(payload.get("project_id", "")),
+            material_id=catalog.id if catalog else None,
+            name=str(payload.get("name") or (catalog.name if catalog else "")),
+            unit=str(payload.get("unit") or (catalog.unit if catalog else "Stk")),
+            quantity=float(payload.get("quantity", 1.0)),
+            price_cents=int(payload.get("price_cents") or (catalog.price_cents if catalog else 0)),
+            work_date=str(payload.get("work_date", "")),
+            note=str(payload.get("note", "")),
+        )
+        db.add(usage)
+        db.flush()
+        ctx.audit(
+            action="MATERIAL_USED",
+            entity="material_usage",
+            entity_id=usage.id,
+            after=snapshot_usage(usage),
+        )
+        return APPLIED, usage.version, None, None
+
+    if op.operation == "update":
+        if row is None:
+            return REJECTED, None, None, "not_found"
+        if op.base_version is None:
+            return REJECTED, row.version, None, "base_version_required"
+        lww = row.version != op.base_version
+        if lww and not _lww_applies(op, row.updated_at):
+            return (
+                CONFLICT,
+                row.version,
+                _conflict_payload(op, snapshot_usage(row), row.version),
+                None,
+            )
+        before = snapshot_usage(row)
+        for key in USAGE_FIELDS:
+            if key in op.payload and op.payload[key] is not None:
+                current = getattr(row, key)
+                if isinstance(current, float):
+                    setattr(row, key, float(op.payload[key]))
+                elif isinstance(current, int) and not isinstance(current, bool):
+                    setattr(row, key, int(op.payload[key]))
+                else:
+                    setattr(row, key, str(op.payload[key]))
+        row.version += 1
+        row.updated_at = utcnow()
+        ctx.audit(
+            action="MATERIAL_USAGE_UPDATED",
+            entity="material_usage",
+            entity_id=row.id,
+            before=before,
+            after=snapshot_usage(row),
+        )
+        return APPLIED, row.version, None, None
+
+    return REJECTED, None, None, "delete_not_supported"
+
+
+def _delete_entity(db: Session, entity: str, entity_id: str) -> tuple[str, int | None, str | None]:
+    model = {"time_entry": TimeEntry, "material_usage": MaterialUsage}.get(entity)
+    if model is None:
+        return REJECTED, None, "delete_not_supported"
+    row = db.get(model, entity_id)
+    if row is None:
+        return APPLIED, None, None
+    db.delete(row)
+    db.flush()
+    return APPLIED, None, None
+
+
 def _apply_defect(
     ctx: _Ctx, db: Session, op: OperationIn
 ) -> tuple[str, int | None, dict[str, Any] | None, str | None]:
@@ -215,10 +397,14 @@ def _apply_defect(
     return REJECTED, None, None, "delete_not_supported"
 
 
-_HANDLERS = {
+HANDLERS = {
     "inspection": _apply_inspection,
     "defect": _apply_defect,
+    "time_entry": _apply_time_entry,
+    "material_usage": _apply_material_usage,
 }
+
+DELETABLE_ENTITIES = {"time_entry", "material_usage"}
 
 
 def _exc_reason(exc: Exception) -> str:
@@ -270,7 +456,22 @@ def process(db: Session, req: SyncRequest, user: Any, ip: str | None = None) -> 
         ctx = _Ctx(user, req.device_id)
         error: str | None = None
         try:
-            status_value, version, conflict, error = _HANDLERS[op.entity](ctx, db, op)
+            if op.operation == "delete" and op.entity in DELETABLE_ENTITIES:
+                status_value, version, error = _delete_entity(db, op.entity, op.entity_id)
+                conflict = None
+                if status_value == APPLIED:
+                    audits.append(
+                        {
+                            "action": f"{op.entity.upper()}_DELETED",
+                            "user": user,
+                            "entity": op.entity,
+                            "entity_id": op.entity_id,
+                            "device_id": req.device_id,
+                            "ip": ip,
+                        }
+                    )
+            else:
+                status_value, version, conflict, error = HANDLERS[op.entity](ctx, db, op)
         except HTTPException as exc:
             status_value, version, conflict = REJECTED, None, None
             error = _exc_reason(exc)

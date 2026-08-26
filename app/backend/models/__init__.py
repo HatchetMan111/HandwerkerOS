@@ -6,6 +6,13 @@ from app.backend.models.form import FormTemplate, FormVersion
 from app.backend.models.inspection import Defect, Inspection
 from app.backend.models.project import Project
 from app.backend.models.sync import SyncOperation
+from app.backend.models.timematerial import (
+    Assignment,
+    Invoice,
+    MaterialItem,
+    MaterialUsage,
+    TimeEntry,
+)
 from app.backend.models.user import User
 
 __all__ = [
@@ -17,7 +24,12 @@ __all__ = [
     "FormVersion",
     "Defect",
     "Inspection",
+    "Assignment",
+    "Invoice",
+    "MaterialItem",
+    "MaterialUsage",
     "Project",
+    "TimeEntry",
     "SyncOperation",
     "User",
 ]
