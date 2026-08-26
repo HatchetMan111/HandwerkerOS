@@ -18,16 +18,17 @@ def test_default_admin_credentials_and_reset_tool(client: TestClient):
     try:
         _delete_all_users()
         ensure_bootstrap()
+        admin_email = settings.admin_email.lower()
 
         login = client.post(
             "/api/auth/login",
-            json={"email": "admin@handwerkeros.local", "password": "admin"},
+            json={"email": admin_email, "password": "admin"},
         )
-        assert login.status_code == 200
+        assert login.status_code == 200, login.text
 
         wrong = client.post(
             "/api/auth/login",
-            json={"email": "admin@handwerkeros.local", "password": "nicht-admin"},
+            json={"email": admin_email, "password": "nicht-admin"},
         )
         assert wrong.status_code == 401
 
@@ -38,12 +39,12 @@ def test_default_admin_credentials_and_reset_tool(client: TestClient):
         set_password(None, "brand-neues-passwort-123")
         old_login = client.post(
             "/api/auth/login",
-            json={"email": "admin@handwerkeros.local", "password": "admin"},
+            json={"email": admin_email, "password": "admin"},
         )
         assert old_login.status_code == 401
         new_login = client.post(
             "/api/auth/login",
-            json={"email": "admin@handwerkeros.local", "password": "brand-neues-passwort-123"},
+            json={"email": admin_email, "password": "brand-neues-passwort-123"},
         )
         assert new_login.status_code == 200
     finally:
