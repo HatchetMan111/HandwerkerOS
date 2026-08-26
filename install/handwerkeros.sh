@@ -110,6 +110,7 @@ resolve_ctid_and_mode() {
   elif [ -z "${CTID}" ] && [ -n "${existing}" ]; then
     MODE="update"
     CTID="${existing}"
+    CREATED_CT="${CTID}"
     warn "Bestehende ${APP}-CT gefunden (${CTID}) – Update-Modus. Neuinstallation erzwinge via CTID_NEU=1 oder CT loeschen."
   else
     MODE="install"
@@ -184,6 +185,7 @@ write_inner_script() {
 #!/usr/bin/env bash
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true
+export LC_ALL=C LANG=C
 APP_PORT="8080"
 APP_DIR="/opt/handwerkeros"
 
@@ -199,12 +201,11 @@ id -u handwerkeros >/dev/null 2>&1 || useradd --system --home-dir "${APP_DIR}" -
 mkdir -p "${APP_DIR}/storage/data" "${APP_DIR}/storage/files"
 
 step "Anwendungscode"
-if [ -f "${APP_DIR}/.git/config" ]; then
-  git -C "${APP_DIR}" fetch --depth 1 origin main
-  git -C "${APP_DIR}" reset --hard origin/main
-else
-  git clone --depth 1 https://github.com/HatchetMan111/HandwerkerOS.git "${APP_DIR}"
-fi
+SRC_TMP="$(mktemp -d)"
+git clone --quiet --depth 1 "__REPO_URL__" "${SRC_TMP}/src"
+find "${APP_DIR}" -mindepth 1 -maxdepth 1 ! -name storage -exec rm -rf {} +
+cp -a "${SRC_TMP}/src/." "${APP_DIR}/"
+rm -rf "${SRC_TMP}"
 cd "${APP_DIR}"
 
 step "Python-Umgebung"
@@ -251,6 +252,7 @@ run_inner_install() {
   step "Installation im CT ${CTID}"
   local inner="/tmp/${APP}-inner-${RUN_TIMESTAMP}.sh"
   write_inner_script
+  sed -i "s|__REPO_URL__|${REPO_URL}|g" "${inner}"
   bash -n "${inner}"
   pct push "${CTID}" "${inner}" "/tmp/${APP}-inner.sh" >/dev/null
   pct exec "${CTID}" -- chmod +x "/tmp/${APP}-inner.sh"
