@@ -89,14 +89,42 @@ Idempotenz ist datenbankseitig: `operation_id` ist Primärschlüssel der
 
 ## Installation (Proxmox LXC)
 
-Geplant als Community-Scripts-Einzeiler (Phase „Proxmox“):
+Einzeiler auf dem Proxmox-Host (als root):
 
 ```bash
 bash -c "$(wget -qLO - https://raw.githubusercontent.com/HatchetMan111/HandwerkerOS/main/install/handwerkeros.sh)"
 ```
 
-Bereits vorhanden: [`systemd/handwerkeros.service`](systemd/handwerkeros.service)
-(`Restart=always`, `After=network-online.target`, ReadWritePaths auf Storage).
+Das Script: prüft Root/Proxmox, wählt automatisch eine freie CT-ID, erstellt einen
+**unprivilegierten Debian-12-LXC** (`onboot=1`, Startwerte: 2 vCPU / 2 GB RAM / 8 GB Disk),
+installiert die App im Container, richtet systemd ein und verifiziert Service + Health-Check.
+Am Ende erscheint die fertige URL `http://<CT-IP>:8080` samt Admin-Zugangsdaten.
+
+**Idempotent:** erneutes Ausführen erkennt die bestehende HandwerkerOS-CT und führt ein
+Update durch (Code-Pull, pip-Install, Service-Restart, Health-Check). Vorhandene Daten
+bleiben unberührt.
+
+Parameter per Umgebungsvariable:
+
+```bash
+CTID=150 STORAGE=local BRIDGE=vmbr0 CORES=2 RAM=2048 DISK=16 \
+  bash -c "$(wget -qLO - https://raw.githubusercontent.com/HatchetMan111/HandwerkerOS/main/install/handwerkeros.sh)"
+```
+
+| Variable | Default | Bedeutung |
+|---|---|---|
+| `CTID` | automatisch (freie ID) | Container-ID; bei existierender CT → Update-Modus |
+| `STORAGE` | `local` | Proxmox-Storage für rootfs + Template |
+| `BRIDGE` | `vmbr0` | Netzwerk-Bridge |
+| `CORES`/`RAM`/`DISK` | `2`/`2048`/`8` | Ressourcen |
+| `SWAP` | `512` | Swap in MB |
+
+**Debugging:** Bei Fehlern gibt das Script Exit-Code, Befehl, CT-Journal-Auszug und
+Logdatei aus (`/tmp/handwerkeros-install-*.log`). Debug-Lauf:
+`bash -x <(wget -qLO - <url>)`.
+
+**Deinstallation:** `pct stop <CTID> && pct destroy <CTID>` – alle Daten liegen
+ausschließlich im Container unter `/opt/handwerkeros/storage`.
 
 ## Update / Deinstallation (geplant)
 
