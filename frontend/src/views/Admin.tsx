@@ -140,10 +140,12 @@ export default function Admin({ currentUser }: { currentUser: User }) {
           <form className="card form-row" onSubmit={createUser}>
             <h2>Benutzer anlegen</h2>
             <div className="field">
-              <label htmlFor="u-email">E-Mail *</label>
+              <label htmlFor="u-email">Benutzername (oder E-Mail) *</label>
               <input
                 id="u-email"
-                type="email"
+                type="text"
+                autoCapitalize="none"
+                minLength={3}
                 required
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}

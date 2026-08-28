@@ -69,3 +69,35 @@ def test_deactivated_user_cannot_login(client: TestClient, admin_headers):
     assert client.post(
         "/api/auth/login", json={"email": email, "password": "passwort-123"}
     ).status_code == 401
+
+
+def test_login_with_plain_username(client: TestClient, admin_headers):
+    suffix = uuid.uuid4().hex[:8]
+    created = client.post(
+        "/api/users",
+        json={
+            "email": f"monteur{suffix}",
+            "name": "Nur Benutzername",
+            "password": "geheim-1234",
+            "role": "worker",
+        },
+        headers=admin_headers,
+    )
+    assert created.status_code == 201, created.text
+
+    login = client.post(
+        "/api/auth/login", json={"email": f"monteur{suffix}", "password": "geheim-1234"}
+    )
+    assert login.status_code == 200
+
+    spaces = client.post(
+        "/api/users",
+        json={
+            "email": "mit leer",
+            "name": "X",
+            "password": "geheim-1234",
+            "role": "worker",
+        },
+        headers=admin_headers,
+    )
+    assert spaces.status_code == 422

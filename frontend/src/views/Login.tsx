@@ -30,11 +30,14 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
         <p className="muted">Anmeldung</p>
         <p className="muted login-hint">Standard-Zugang: <b>admin</b> / <b>admin</b> (im Admin-Tab aendern)</p>
         <div className="field">
-          <label htmlFor="login-email">E-Mail</label>
+          <label htmlFor="login-email">Benutzername oder E-Mail</label>
           <input
             id="login-email"
-            type="email"
+            type="text"
+            inputMode="email"
+            autoCapitalize="none"
             autoComplete="username"
+            placeholder="admin"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}

@@ -30,7 +30,7 @@ class Settings:
         self.lockout_seconds = int(os.environ.get("HANDWERK_LOCKOUT_SECONDS", "30"))
         self.lockout_after_fails = int(os.environ.get("HANDWERK_LOCKOUT_AFTER_FAILS", "5"))
         self.sync_allow_lww = os.environ.get("HANDWERK_SYNC_ALLOW_LWW", "false").lower() == "true"
-        self.admin_email = os.environ.get("HANDWERK_ADMIN_EMAIL", "admin@handwerkeros.local")
+        self.admin_email = os.environ.get("HANDWERK_ADMIN_EMAIL", "admin")
         self.admin_password = os.environ.get("HANDWERK_ADMIN_PASSWORD", "")
 
     @property

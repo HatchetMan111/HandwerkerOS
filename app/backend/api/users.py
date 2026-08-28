@@ -1,26 +1,15 @@
-import re
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.backend.api.auth import validate_login_identifier
 from app.backend.api.deps import get_client_ip, require_permission
 from app.backend.db import get_db
 from app.backend.models.user import ROLE_PERMISSIONS, User
 from app.backend.security import hash_password
 from app.backend.services import audit
 from app.backend.services.serializers import serialize_user
-
-EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-
-
-def validate_email(value: str) -> str:
-    value = value.lower().strip()
-    if not EMAIL_PATTERN.match(value) or len(value) > 255:
-        raise ValueError("Ungueltige E-Mail-Adresse")
-    return value
-
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -30,8 +19,8 @@ class UserCreate(BaseModel):
 
     @field_validator("email")
     @classmethod
-    def _check_email(cls, value: str) -> str:
-        return validate_email(value)
+    def _check_login(cls, value: str) -> str:
+        return validate_login_identifier(value)
     name: str = Field(min_length=2, max_length=255)
     password: str = Field(min_length=8, max_length=128)
     role: str = "worker"

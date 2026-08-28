@@ -32,7 +32,7 @@ Zugangsdaten über Umgebungsvariablen steuerbar:
 
 | Variable | Default |
 |---|---|
-| `HANDWERK_ADMIN_EMAIL` | `admin@handwerkeros.local` |
+| `HANDWERK_ADMIN_EMAIL` | `admin` (Benutzername oder E-Mail als Login) |
 | `HANDWERK_ADMIN_PASSWORD` | zufällig generiert (steht im Serverlog) |
 | `HANDWERK_DATA_DIR` | `./storage/data` |
 | `HANDWERK_STORAGE_DIR` | `$HANDWERK_DATA_DIR/files` |
@@ -110,7 +110,7 @@ Freigegebene Zeiten sind rechnungssicher gesperrt; Freigabe nur mit
 Das Frontend (React + TypeScript + Vite) liegt fertig gebaut unter `frontend/dist/` im Repo
 und wird vom Backend automatisch ausgeliefert – kein Node.js im LXC nötig.
 
-Funktionen: Login mit Rollen, Dashboard mit Schnellerfassung, Kunden & Projekte,
+Funktionen: Login mit Benutzername oder E-Mail + Rollen, Dashboard mit Schnellerfassung, Kunden & Projekte,
 Formularvorlagen inkl. Versionsanlage, Prüfungsdetails mit dynamischem Formular-Renderer
 (alle Feldtypen inkl. Unterschriften-Pad und Foto-/Datei-Upload je Feld), Mängelerfassung
 mit Status, Abschluss-Workflow, Offline-Badge, Toasts.

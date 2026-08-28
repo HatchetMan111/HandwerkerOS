@@ -13,14 +13,18 @@ from app.backend.security import create_token, verify_password
 from app.backend.services import audit
 from app.backend.services.serializers import serialize_user
 
-EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+LOGIN_PATTERN = re.compile(r"^[^@\s]+(@[^@\s]+\.[^@\s]+)?$")
+
+
+def validate_login_identifier(value: str) -> str:
+    value = value.lower().strip()
+    if not LOGIN_PATTERN.match(value) or len(value) < 3 or len(value) > 255:
+        raise ValueError("Kennung: 3-255 Zeichen, keine Leerzeichen (Name oder E-Mail)")
+    return value
 
 
 def validate_email(value: str) -> str:
-    value = value.lower().strip()
-    if not EMAIL_PATTERN.match(value) or len(value) > 255:
-        raise ValueError("Ungueltige E-Mail-Adresse")
-    return value
+    return validate_login_identifier(value)
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -34,8 +38,8 @@ class LoginIn(BaseModel):
 
     @field_validator("email")
     @classmethod
-    def _check_email(cls, value: str) -> str:
-        return validate_email(value)
+    def _check_login(cls, value: str) -> str:
+        return validate_login_identifier(value)
     password: str = Field(min_length=1, max_length=256)
 
 
@@ -52,9 +56,14 @@ def login(body: LoginIn, db: Session = Depends(get_db), ip: str | None = Depends
             "Konto temporaer gesperrt, bitte spaeter erneut versuchen",
         )
 
-    user = (
-        db.query(User).filter(func.lower(User.email) == email).first()
-    )
+    user = db.query(User).filter(func.lower(User.email) == email).first()
+    if user is None:
+        user = (
+            db.query(User)
+            .filter(func.lower(User.name) == email)
+            .order_by(User.created_at)
+            .first()
+        )
     valid = (
         user is not None
         and user.is_active
