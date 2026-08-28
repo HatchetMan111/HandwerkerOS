@@ -158,11 +158,19 @@ export const api = {
       `/api/files?entity_type=${entityType}&entity_id=${entityId}`
     ),
   uploadAttachment: (
-    file: File,
-    meta: { entityType: string; entityId: string; kind: string; fieldId?: string | null }
+    file: File | Blob,
+    meta: {
+      entityType: string;
+      entityId: string;
+      kind: string;
+      fieldId?: string | null;
+      filename?: string;
+      capturedAt?: string;
+    }
   ) => {
     const form = new FormData();
-    form.append("file", file);
+    form.append("file", file, meta.filename ?? (file instanceof File ? file.name : "upload"));
+    if (meta.capturedAt) form.append("captured_at", meta.capturedAt);
     form.append("entity_type", meta.entityType);
     form.append("entity_id", meta.entityId);
     form.append("kind", meta.kind);

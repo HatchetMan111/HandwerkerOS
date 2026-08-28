@@ -41,15 +41,31 @@ export default function FieldRenderer({
     setUploading(true);
     try {
       for (const file of Array.from(files)) {
-        await api.uploadAttachment(file, {
+        const meta = {
           entityType,
           entityId,
           kind:
             field.type !== "file" && file.type.startsWith("image/")
-              ? "photo"
-              : "document",
+              ? ("photo" as const)
+              : ("document" as const),
           fieldId: field.id
-        });
+        };
+        try {
+          if (!navigator.onLine) throw new TypeError("offline");
+          await api.uploadAttachment(file, meta);
+        } catch (error) {
+          const { enqueuePhoto } = await import("../idb");
+          await enqueuePhoto({
+            entity_type: meta.entityType,
+            entity_id: meta.entityId,
+            kind: meta.kind,
+            field_id: meta.fieldId,
+            filename: file.name,
+            mime: file.type || "application/octet-stream",
+            blob: file
+          });
+          notify("Offline gesichert - Foto laedt spaeter automatisch hoch");
+        }
       }
       window.dispatchEvent(new CustomEvent("hwe-attachments-changed"));
     } catch (error) {

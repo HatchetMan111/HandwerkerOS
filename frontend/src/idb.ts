@@ -12,10 +12,11 @@ import type {
 } from "./types";
 
 const DB_NAME = "handwerkeros";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_KV = "kv";
 const STORE_QUEUE = "queue";
 const STORE_CACHE = "cache";
+const STORE_PHOTOS = "pending_photos";
 
 type CacheRow = { key: string; entity: string; id: string; data: unknown };
 export type QueuedOp = {
@@ -38,6 +39,8 @@ function openDb(): Promise<IDBDatabase> {
         db.createObjectStore(STORE_QUEUE, { keyPath: "op_id" });
       if (!db.objectStoreNames.contains(STORE_CACHE))
         db.createObjectStore(STORE_CACHE, { keyPath: "key" });
+      if (!db.objectStoreNames.contains(STORE_PHOTOS))
+        db.createObjectStore(STORE_PHOTOS, { keyPath: "id" });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -118,9 +121,42 @@ export function subscribe(listener: Listener): () => void {
   return () => listeners.delete(listener);
 }
 
+export interface PendingPhoto {
+  id: string;
+  entity_type: string;
+  entity_id: string;
+  kind: "photo" | "document";
+  field_id: string | null;
+  filename: string;
+  mime: string;
+  created_at: string;
+  blob: Blob;
+}
+
+export async function enqueuePhoto(meta: Omit<PendingPhoto, "id" | "created_at"> & { blob: Blob; id?: string }): Promise<PendingPhoto> {
+  const record: PendingPhoto = {
+    ...meta,
+    id: meta.id ?? newUuid(),
+    created_at: new Date().toISOString()
+  };
+  await tx(STORE_PHOTOS, "readwrite", (s) => s.put(record));
+  notifyListeners();
+  return record;
+}
+
+export async function listPendingPhotos(): Promise<PendingPhoto[]> {
+  return (await tx<PendingPhoto[]>(STORE_PHOTOS, "readonly", (s) => s.getAll())) ?? [];
+}
+
+export async function deletePendingPhoto(id: string): Promise<void> {
+  await tx(STORE_PHOTOS, "readwrite", (s) => s.delete(id));
+  notifyListeners();
+}
+
 export async function pendingCount(): Promise<number> {
   const rows = await tx<QueuedOp[]>(STORE_QUEUE, "readonly", (s) => s.getAll());
-  lastPending = (rows ?? []).length;
+  const photos = await tx<number>(STORE_PHOTOS, "readonly", (s) => s.count());
+  lastPending = (rows ?? []).length + (photos ?? 0);
   return lastPending;
 }
 
@@ -228,11 +264,59 @@ export async function syncNow(forcePull = false): Promise<{ applied: number; pul
     if (n === 0) break;
   }
   const hasNetwork = navigator.onLine;
+  if (hasNetwork) {
+    await uploadPendingPhotos();
+  }
   if (hasNetwork && (forcePull || applied > 0 || (await kvGet<string>("last_pull")) === null)) {
     await pullAll();
   }
   notifyListeners();
   return { applied, pulled: hasNetwork };
+}
+
+let photoUploadRunning = false;
+
+export async function uploadPendingPhotos(): Promise<number> {
+  if (photoUploadRunning || !navigator.onLine) return 0;
+  photoUploadRunning = true;
+  let uploaded = 0;
+  try {
+    const pending = await listPendingPhotos();
+    for (const record of pending) {
+      try {
+        const file = new File([record.blob], record.filename, { type: record.mime });
+        await api.uploadAttachment(file, {
+          entityType: record.entity_type,
+          entityId: record.entity_id,
+          kind: record.kind,
+          fieldId: record.field_id,
+          filename: record.filename,
+          capturedAt: record.created_at
+        });
+        await deletePendingPhoto(record.id);
+        uploaded += 1;
+        window.dispatchEvent(new CustomEvent("hwe-attachments-changed"));
+      } catch (error) {
+        const message = String(error);
+        if (message.includes("Sitzung")) throw error;
+        if (
+          message.includes("nicht gefunden") ||
+          message.includes("ungueltig") ||
+          message.includes("422") ||
+          message.includes("404")
+        ) {
+          await deletePendingPhoto(record.id);
+          const problems = (await kvGet<Array<Record<string, unknown>>>("last_problems")) ?? [];
+          problems.unshift({ at: new Date().toISOString(), type: "photo", filename: record.filename, error: message });
+          await kvSet("last_problems", problems.slice(0, 10));
+        }
+      }
+    }
+  } finally {
+    photoUploadRunning = false;
+    notifyListeners();
+  }
+  return uploaded;
 }
 
 export async function pullAll(): Promise<void> {

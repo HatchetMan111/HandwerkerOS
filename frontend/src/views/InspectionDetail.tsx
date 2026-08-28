@@ -4,6 +4,7 @@ import { api, formatDate, notify } from "../api";
 import FieldRenderer from "../components/FieldRenderer";
 import AttachmentImage from "../components/AttachmentImage";
 import { computeDefaults, countProgress, isFilled } from "../utils/formDefaults";
+import { printInspectionReport } from "../utils/reportPrint";
 
 const NEXT_STATUS: Record<string, string[]> = {
   draft: ["in_progress", "completed"],
@@ -37,6 +38,7 @@ export default function InspectionDetail({ inspectionId, userName, onBack }: Pro
   const [inspection, setInspection] = useState<Inspection | null>(null);
   const [schema, setSchema] = useState<FormSchema | null>(null);
   const [values, setValues] = useState<Record<string, unknown>>({});
+  const [templateName, setTemplateName] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [defects, setDefects] = useState<Defect[]>([]);
   const [defectText, setDefectText] = useState("");
@@ -55,6 +57,7 @@ export default function InspectionDetail({ inspectionId, userName, onBack }: Pro
       const version = template.versions?.find((v) => v.id === loaded.form_version_id);
       const loadedSchema = version?.schema ?? null;
       setSchema(loadedSchema);
+      setTemplateName(template.name);
       const defaults = computeDefaults(loadedSchema);
       setValues({ ...defaults, ...(loaded.data ?? {}) });
       setAttachments(await api.listAttachments("inspection", loaded.id));
@@ -166,11 +169,27 @@ export default function InspectionDetail({ inspectionId, userName, onBack }: Pro
     setUploadingMany(true);
     try {
       for (const file of Array.from(files)) {
-        await api.uploadAttachment(file, {
+        const meta = {
           entityType: "inspection",
           entityId: inspection.id,
-          kind: file.type.startsWith("image/") ? "photo" : "document"
-        });
+          kind: file.type.startsWith("image/") ? ("photo" as const) : ("document" as const)
+        };
+        try {
+          if (!navigator.onLine) throw new TypeError("offline");
+          await api.uploadAttachment(file, meta);
+        } catch (error) {
+          const { enqueuePhoto } = await import("../idb");
+          await enqueuePhoto({
+            entity_type: meta.entityType,
+            entity_id: meta.entityId,
+            kind: meta.kind,
+            field_id: null,
+            filename: file.name,
+            mime: file.type || "application/octet-stream",
+            blob: file
+          });
+          notify("Offline gesichert - laedt spaeter automatisch hoch");
+        }
       }
       window.dispatchEvent(new CustomEvent("hwe-attachments-changed"));
     } catch (error) {
@@ -227,6 +246,36 @@ export default function InspectionDetail({ inspectionId, userName, onBack }: Pro
           Version {inspection.version} · aktualisiert {formatDate(inspection.updated_at)}
           {inspection.completed_at ? ` · abgeschlossen ${formatDate(inspection.completed_at)}` : ""}
         </p>
+        <div className="btn-row report-row">
+          <button
+            className="btn btn-secondary btn-sm"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                const projects = await api.listProjects();
+                const projectName =
+                  projects.find((p) => p.id === inspection.project_id)?.name ?? "";
+                await printInspectionReport({
+                  inspection,
+                  schema,
+                  templateName: templateName || "Pruefung",
+                  projectName,
+                  userName,
+                  values,
+                  defects,
+                  attachments
+                });
+              } catch (error) {
+                notify(String(error), true);
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Bericht drucken / PDF
+          </button>
+        </div>
         {!locked ? (
           <>
             <p className="progress-line">

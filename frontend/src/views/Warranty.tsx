@@ -55,11 +55,29 @@ export default function Warranty() {
     setBusy(true);
     try {
       for (const file of Array.from(files)) {
-        await api.uploadAttachment(file, {
+        const meta = {
           entityType: "project",
           entityId: selectedId,
-          kind: file.type.startsWith("image/") ? "photo" : "document"
-        });
+          kind: file.type.startsWith("image/") ? ("photo" as const) : ("document" as const)
+        };
+        try {
+          if (!navigator.onLine) throw new TypeError("offline");
+          await api.uploadAttachment(file, meta);
+        } catch (error) {
+          const { enqueuePhoto } = await import("../idb");
+          await enqueuePhoto({
+            entity_type: meta.entityType,
+            entity_id: meta.entityId,
+            kind: meta.kind,
+            field_id: null,
+            filename: file.name,
+            mime: file.type || "application/octet-stream",
+            blob: file
+          });
+          import("../api").then(({ notify }) =>
+            notify("Offline gesichert - laedt spaeter automatisch hoch")
+          );
+        }
       }
       window.dispatchEvent(new CustomEvent("hwe-attachments-changed"));
       await loadAttachments();

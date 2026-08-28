@@ -2,7 +2,7 @@
 
 Lokale, offline-first Handwerker-Dokumentationsplattform mit PWA-Client und synchronisierter Serverdatenbank.
 
-**Version:** siehe [VERSION](VERSION) · **Status:** Core + Web-UI + Zeit/Material + Offline-Sync
+**Version:** siehe [VERSION](VERSION) · **Status:** Core + Web-UI + Zeit/Material + Offline-Sync (inkl. Fotos) + Berichte
 
 ## Architektur
 

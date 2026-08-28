@@ -886,3 +886,7 @@ textarea:focus {
   background: none;
   cursor: pointer;
 }
+
+.report-row {
+  margin-top: 0.6rem;
+}
