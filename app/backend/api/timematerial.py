@@ -126,9 +126,7 @@ def patch_entry(
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Keine Berechtigung fuer fremde Zeiten")
 
     before = {"hours": entry.hours, "status": entry.status}
-    approver_change = (
-        body.status in ("approved", "rejected", "submitted") and body.status != entry.status
-    )
+    approver_change = body.status in ("approved", "rejected") and body.status != entry.status
     if approver_change:
         if not actor.has_permission("reports.create"):
             raise HTTPException(status.HTTP_403_FORBIDDEN, "Freigabe nur mit reports.create")

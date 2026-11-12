@@ -10,6 +10,7 @@ import {
   subscribe,
   pendingCount
 } from "../idb";
+import { todayLocalISO } from "../utils/dates";
 
 function eur(cents: number): string {
   return (cents / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR" });
@@ -87,7 +88,7 @@ export default function Materials({ canManageCatalog }: Props) {
     }
     const usageId =
       crypto.randomUUID ? crypto.randomUUID() : `mu-${Date.now()}-${Math.random()}`;
-    const workDate = new Date().toISOString().slice(0, 10);
+    const workDate = todayLocalISO();
     const priceCents = Math.round(
       parseFloat(form.price_eur.replace(",", ".") || "0") * 100
     );

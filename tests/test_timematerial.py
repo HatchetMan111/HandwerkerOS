@@ -151,16 +151,24 @@ def test_approval_flow_permissions(client: TestClient, seed):
     assert entry.status_code == 201
     data = entry.json()
 
+    worker_submit = client.patch(
+        f"/api/time/entries/{data['id']}",
+        json={"base_version": 1, "status": "submitted"},
+        headers=seed.worker_headers,
+    )
+    assert worker_submit.status_code == 200
+    assert worker_submit.json()["status"] == "submitted"
+
     worker_approve = client.patch(
         f"/api/time/entries/{data['id']}",
-        json={"base_version": 1, "status": "approved"},
+        json={"base_version": 2, "status": "approved"},
         headers=seed.worker_headers,
     )
     assert worker_approve.status_code == 403
 
     admin_approve = client.patch(
         f"/api/time/entries/{data['id']}",
-        json={"base_version": 1, "status": "approved"},
+        json={"base_version": 2, "status": "approved"},
         headers=seed.admin_headers,
     )
     assert admin_approve.status_code == 200
@@ -168,7 +176,7 @@ def test_approval_flow_permissions(client: TestClient, seed):
 
     edit_approved = client.patch(
         f"/api/time/entries/{data['id']}",
-        json={"base_version": 2, "hours": 5},
+        json={"base_version": 3, "hours": 5},
         headers=seed.worker_headers,
     )
     assert edit_approved.status_code == 409

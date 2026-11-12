@@ -2,16 +2,31 @@ import { useEffect, useState } from "react";
 import type { Inspection, Project } from "../types";
 import { api, formatDate } from "../api";
 
+const STATUS_LABELS: Record<string, string> = {
+  draft: "Entwurf",
+  in_progress: "In Bearbeitung",
+  completed: "Abgeschlossen",
+  reviewed: "Geprueft",
+  archived: "Archiviert"
+};
+
 export default function Dashboard({ go }: { go: (view: string) => void }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [openInspections, setOpenInspections] = useState<Inspection[]>([]);
+  const [openCount, setOpenCount] = useState(0);
   const [defectsOpen, setDefectsOpen] = useState(0);
 
   useEffect(() => {
     api.listProjects().then(setProjects).catch(() => undefined);
-    api
-      .listInspections(undefined, "draft")
-      .then((items) => setOpenInspections(items.slice(0, 6)))
+    Promise.all([
+      api.listInspections(undefined, "draft"),
+      api.listInspections(undefined, "in_progress")
+    ])
+      .then(([drafts, running]) => {
+        const open = [...drafts, ...running];
+        setOpenCount(open.length);
+        setOpenInspections(open.slice(0, 6));
+      })
       .catch(() => undefined);
     api
       .listDefects()
@@ -25,33 +40,36 @@ export default function Dashboard({ go }: { go: (view: string) => void }) {
         <h2>Schnellerfassung</h2>
         <div className="quick-grid">
           <button className="btn btn-primary btn-lg" onClick={() => go("time")}>
-            Stunden erfassen
+            ⏱ Stunden erfassen
           </button>
           <button className="btn btn-primary btn-lg" onClick={() => go("material")}>
-            Material verbrauchen
+            🔨 Material verbrauchen
           </button>
           <button className="btn btn-secondary btn-lg" onClick={() => go("inspections")}>
-            Checkliste starten
+            ✓ Checkliste starten
           </button>
           <button className="btn btn-secondary btn-lg" onClick={() => go("planung")}>
-            Einsatzplan
+            📅 Einsatzplan
           </button>
         </div>
       </section>
 
       <div className="stat-grid">
-        <div className="card stat">
+        <button className="card stat stat-tappable" onClick={() => go("projects")}>
+          <span className="stat-icon">🏗</span>
           <span className="stat-value">{projects.length}</span>
           <span className="stat-label">Projekte</span>
-        </div>
-        <div className="card stat">
-          <span className="stat-value">{openInspections.length}</span>
+        </button>
+        <button className="card stat stat-tappable" onClick={() => go("inspections")}>
+          <span className="stat-icon">📋</span>
+          <span className="stat-value">{openCount}</span>
           <span className="stat-label">Offene Pruefungen</span>
-        </div>
-        <div className="card stat">
+        </button>
+        <button className="card stat stat-tappable" onClick={() => go("gewaehr")}>
+          <span className="stat-icon">⚠️</span>
           <span className={`stat-value ${defectsOpen > 0 ? "warn-text" : ""}`}>{defectsOpen}</span>
           <span className="stat-label">Offene Maengel</span>
-        </div>
+        </button>
       </div>
 
       <section className="card">
@@ -63,10 +81,13 @@ export default function Dashboard({ go }: { go: (view: string) => void }) {
             {openInspections.map((inspection) => (
               <li key={inspection.id}>
                 <button className="list-item" onClick={() => go(`inspection:${inspection.id}`)}>
-                  <span>Pruefung</span>
-                  <span className="muted">
-                    {inspection.status} · {formatDate(inspection.updated_at)}
+                  <span className="list-title">
+                    <span className={`badge badge-${inspection.status}`}>
+                      {STATUS_LABELS[inspection.status]}
+                    </span>{" "}
+                    Pruefung
                   </span>
+                  <span className="muted">{formatDate(inspection.updated_at)}</span>
                 </button>
               </li>
             ))}

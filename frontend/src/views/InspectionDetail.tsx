@@ -285,6 +285,12 @@ export default function InspectionDetail({ inspectionId, userName, onBack }: Pro
                 <span className="warn-text"> · fehlen: {missingRequired.join(", ")}</span>
               ) : null}
             </p>
+            <div className="progress-bar">
+              <div
+                className="progress-fill"
+                style={{ width: `${progress.total ? Math.round((progress.filled / progress.total) * 100) : 0}%` }}
+              />
+            </div>
             <div className="btn-row">
               <button className="btn btn-success btn-lg" onClick={complete} disabled={busy}>
                 Abschliessen &amp; abgeben
@@ -294,7 +300,7 @@ export default function InspectionDetail({ inspectionId, userName, onBack }: Pro
         ) : (
           <p className="muted">Status gesperrt - Aenderungen nur ueber naechste Workflow-Stufe.</p>
         )}
-        {NEXT_STATUS[inspection.status]?.length && locked ? (
+        {locked && (NEXT_STATUS[inspection.status]?.length ?? 0) > 0 ? (
           <div className="btn-row">
             {NEXT_STATUS[inspection.status].map((status) => (
               <button key={status} className="btn btn-secondary" disabled={busy} onClick={() => transition(status)}>

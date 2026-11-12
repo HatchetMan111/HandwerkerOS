@@ -5,19 +5,13 @@ import {
   cachePut,
   cacheDelete,
   getCachedProjects,
+  getCachedUsersIndex,
   pendingCount,
   subscribe,
   syncNow,
   getTimeEntriesLocal
 } from "../idb";
-
-function mondayOf(date: Date): string {
-  const day = date.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  const monday = new Date(date);
-  monday.setDate(date.getDate() + diff);
-  return monday.toISOString().slice(0, 10);
-}
+import { addDays, mondayOf, parseLocalISO, todayLocalISO } from "../utils/dates";
 
 interface Props {
   userId: string;
@@ -27,6 +21,7 @@ interface Props {
 export default function Timesheets({ userId, canApprove }: Props) {
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [usersIndex, setUsersIndex] = useState<Record<string, string>>({});
   const [weekOffset, setWeekOffset] = useState(0);
   const [pending, setPending] = useState(0);
   const [form, setForm] = useState({
@@ -39,11 +34,7 @@ export default function Timesheets({ userId, canApprove }: Props) {
   const weekStartBase = new Date();
   weekStartBase.setDate(weekStartBase.getDate() + weekOffset * 7);
   const weekStart = mondayOf(weekStartBase);
-  const weekEnd = (() => {
-    const end = new Date(weekStart);
-    end.setDate(end.getDate() + 6);
-    return end.toISOString().slice(0, 10);
-  })();
+  const weekEnd = addDays(weekStart, 6);
 
   const load = useCallback(async () => {
     setPending(await pendingCount());
@@ -58,6 +49,7 @@ export default function Timesheets({ userId, canApprove }: Props) {
     }
     setEntries(rows);
     setProjects(await getCachedProjects());
+    setUsersIndex(await getCachedUsersIndex());
   }, []);
 
   useEffect(() => {
@@ -83,7 +75,7 @@ export default function Timesheets({ userId, canApprove }: Props) {
     }
     const entryId =
       crypto.randomUUID ? crypto.randomUUID() : `te-${Date.now()}-${Math.random()}`;
-    const workDate = new Date().toISOString().slice(0, 10);
+    const workDate = todayLocalISO();
     const optimistic: TimeEntry = {
       id: entryId,
       project_id: projectId,
@@ -173,7 +165,11 @@ export default function Timesheets({ userId, canApprove }: Props) {
       });
       notify(status === "approved" ? "Freigegeben" : "Abgelehnt");
       setSubmittedEntries((current) => current.filter((e) => e.id !== entry.id));
-      await cachePut("time_entry", entry.id, { ...entry, status });
+      await cachePut("time_entry", entry.id, {
+        ...entry,
+        status,
+        version: entry.version + 1
+      });
     } catch (error) {
       notify(String(error), true);
     }
@@ -199,7 +195,16 @@ export default function Timesheets({ userId, canApprove }: Props) {
   }, [visible]);
 
   const projectName = (id: string) => projects.find((p) => p.id === id)?.name ?? "?";
+  const userName = (id: string) => usersIndex[id] ?? "?";
   const weekTotal = visible.reduce((sum, e) => sum + e.hours, 0);
+  const weekLabel = `Woche ${parseLocalISO(weekStart).toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit"
+  })}–${parseLocalISO(weekEnd).toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  })}`;
 
   return (
     <div className="stack">
@@ -258,8 +263,7 @@ export default function Timesheets({ userId, canApprove }: Props) {
           &larr;
         </button>
         <span className="week-label">
-          Woche {weekStart.slice(8)}.–{weekEnd.slice(8)}. · Summe {weekTotal.toFixed(2)} h ·{" "}
-          {pending} offen zu sync
+          {weekLabel} · Summe {weekTotal.toFixed(2)} h · {pending} offen zu sync
         </span>
         <button className="btn btn-secondary" onClick={() => setWeekOffset(weekOffset + 1)}>
           &rarr;
@@ -272,7 +276,7 @@ export default function Timesheets({ userId, canApprove }: Props) {
       {byDay.map(([day, list]) => (
         <section className="card" key={day}>
           <h3>
-            {new Date(day).toLocaleDateString("de-DE", {
+            {parseLocalISO(day).toLocaleDateString("de-DE", {
               weekday: "long",
               day: "2-digit",
               month: "2-digit"
@@ -319,7 +323,10 @@ export default function Timesheets({ userId, canApprove }: Props) {
             {submittedEntries.map((entry) => (
               <li key={entry.id} className="list-item static">
                 <span>
-                  {formatDate(entry.updated_at)} · {entry.hours} h · {entry.activity}
+                  <b>{userName(entry.user_id)}</b> · {projectName(entry.project_id)} ·{" "}
+                  {entry.hours} h · {entry.activity}
+                  <br />
+                  <span className="muted">abgegeben {formatDate(entry.updated_at)}</span>
                 </span>
                 <span className="btn-row user-actions">
                   <button className="btn btn-sm btn-success" onClick={() => approve(entry, "approved")}>

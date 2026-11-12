@@ -10,12 +10,6 @@ export default function Warranty() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    fetch("/api/projects")
-      .then((r) => r.json())
-      .catch(() => undefined);
-  }, []);
-
   const loadProjects = useCallback(async () => {
     try {
       const { api: client } = await import("../api");

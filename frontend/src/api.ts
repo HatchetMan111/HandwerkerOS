@@ -35,10 +35,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers["Content-Type"] = "application/json";
   }
   const response = await fetch(path, { ...options, headers });
-  if (response.status === 401) {
-    clearToken();
-    window.location.reload();
-    throw new Error("Sitzung abgelaufen");
+  const isLoginRequest = path.startsWith("/api/auth/login");
+  if (response.status === 401 && !isLoginRequest) {
+    if (token) {
+      clearToken();
+      window.location.reload();
+    }
+    throw new Error("Sitzung abgelaufen - bitte neu anmelden");
   }
   if (!response.ok) {
     let detail: unknown = null;

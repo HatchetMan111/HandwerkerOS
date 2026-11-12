@@ -8,6 +8,7 @@ import {
   kvGet,
   subscribe
 } from "../idb";
+import { addDays, mondayOf, parseLocalISO } from "../utils/dates";
 
 const STATUS_LABELS: Record<string, string> = {
   planned: "Geplant",
@@ -15,14 +16,6 @@ const STATUS_LABELS: Record<string, string> = {
   done: "Erledigt",
   canceled: "Abgesagt"
 };
-
-function mondayOf(date: Date): string {
-  const day = date.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  const d = new Date(date);
-  d.setDate(date.getDate() + diff);
-  return d.toISOString().slice(0, 10);
-}
 
 interface Props {
   userId: string;
@@ -94,10 +87,8 @@ export default function Planning({ userId, isPlanner }: Props) {
 
   const byDay = useMemo(() => {
     const groups = new Map<string, Assignment[]>();
-    const start = new Date(weekStart);
     for (let i = 0; i < 7; i += 1) {
-      const iso = new Date(start.getTime() + i * 86400000).toISOString().slice(0, 10);
-      groups.set(iso, []);
+      groups.set(addDays(weekStart, i), []);
     }
     for (const row of visible) {
       groups.get(row.work_date)?.push(row);
@@ -111,7 +102,16 @@ export default function Planning({ userId, isPlanner }: Props) {
         <button className="btn btn-secondary" onClick={() => setWeekOffset(weekOffset - 1)}>
           &larr;
         </button>
-        <span className="week-label">Woche ab {weekStart.slice(8)}. ({new Date(weekStart).toLocaleDateString("de-DE", { month: "2-digit" })}.)</span>
+        <span className="week-label">
+          Woche {parseLocalISO(weekStart).toLocaleDateString("de-DE", {
+            day: "2-digit",
+            month: "2-digit"
+          })}–{parseLocalISO(addDays(weekStart, 6)).toLocaleDateString("de-DE", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric"
+          })}
+        </span>
         <button className="btn btn-secondary" onClick={() => setWeekOffset(weekOffset + 1)}>
           &rarr;
         </button>
@@ -185,7 +185,7 @@ export default function Planning({ userId, isPlanner }: Props) {
       {byDay.map(([day, list]) => (
         <section className={`card ${list.length ? "" : "dimmed-day"}`} key={day}>
           <h3>
-            {new Date(day).toLocaleDateString("de-DE", {
+            {parseLocalISO(day).toLocaleDateString("de-DE", {
               weekday: "long",
               day: "2-digit",
               month: "2-digit"
